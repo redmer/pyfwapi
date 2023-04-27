@@ -48,10 +48,16 @@ def iter_archives(archives: Iterable[str], query: SE) -> Generator[Asset, None, 
         yield from iter_paginated_assets(search_query)
 
 
+def iter_n(archives: Iterable[str], query: SE, n: int = 25) -> Iterable[Asset]:
+    """Find /n/ results for query across supplied archives"""
+
+    return itertools.islice(iter_archives(archives, query), n)
+
+
 def find_all(archives: Iterable[str], query: SE, n: int = 25) -> list[Asset]:
     """Find /n/ results for query across supplied archives"""
 
-    return list(itertools.islice(iter_archives(archives, query), n))
+    return list(iter_n(archives, query, n))
 
 
 def find(archives: Iterable[str], query: SE) -> Asset:
