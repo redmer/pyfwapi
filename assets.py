@@ -44,25 +44,3 @@ def retrying_get_binary(href: str) -> Iterator[bytes]:
 
 def unstream(stream: Iterator[bytes]) -> bytes:
     return b"".join(stream) or b""
-
-
-# def get_contents(asset: fotoware_api.Asset) -> bytes:
-#     """Get file contents of a Fotoware asset"""
-
-#     return unstream(stream(asset))
-
-
-# def stream(asset: fotoware_api.Asset) -> Iterator[bytes]:
-#     """Returns the most appropriate filestream"""
-
-#     # -> if the asset is an image, the exports API is the best (and cached) option
-#     if can_be_exported(asset):
-#         return stream_asset(asset["href"])
-
-#     # -> Otherwise, the original renditions should be requested
-#     if has_renditions(asset):
-#         orig = original_rendition(asset["renditions"])
-#         return stream_rendition(orig)
-
-#     logging.error(f"No export nor rendition found for asset '{asset['href']}'")
-#     raise HTTPException(status.HTTP_404_NOT_FOUND)

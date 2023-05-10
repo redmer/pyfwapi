@@ -30,7 +30,7 @@ def iter_paginated_assets(page_query: str) -> Generator[Asset, None, None]:
         next_url = page.get("paging", {}).get("next")
         if next_url:
             yield from iter_paginated_assets(next_url)
-    except AttributeError as err:
+    except AttributeError:
         pass
 
 
