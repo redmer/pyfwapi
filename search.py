@@ -43,7 +43,7 @@ def iter_archives(archives: Iterable[str], query: SE) -> Generator[Asset, None, 
             logging.error(f"Archive '{a}' cannot be searched")
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        q = ";o=+?q=" + quote(str(query).strip())
+        q = ";o=+?q=" + quote(str(query).strip())  # order by oldest modified
         search_query = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
         yield from iter_paginated_assets(search_query)
 

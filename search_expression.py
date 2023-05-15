@@ -1,5 +1,10 @@
 from collections import UserString
+from enum import StrEnum
 
+class Predicate(StrEnum):
+    FileModificationFrom= "mtf"
+    FileName = "fn"
+    # ... other predicates not implemented yet
 
 class SE(UserString):
     """
@@ -42,7 +47,7 @@ class SE(UserString):
         return SE(f'{field}:"{ SE.escape(value) }"')
 
     @classmethod
-    def range(cls, field: str, *, min: int | str, max: int | str):
+    def range(cls, field: str, /, *, min: int | str, max: int | str):
         """Search for field values in range"""
         return SE(f"{field}:{min}~~{max}")
 

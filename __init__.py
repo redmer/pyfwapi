@@ -8,5 +8,5 @@ from .renditions import (
     original_rendition,
     rendition_location,
 )
-from .search import find, find_all, iter_archives
+from .search import find, find_all, iter_archives, iter_n
 from .search_expression import SE
