@@ -1,24 +1,38 @@
 from typing import Literal, TypedDict
 
 
-class AssetPreview(TypedDict):
+class PreviewTrait(TypedDict):
     """The traits of an asset preview"""
 
     height: int
-    href: str
     size: int
     square: bool
     width: int
 
 
-class AssetRendition(TypedDict):
+class RenditionTrait(TypedDict):
     """Traits of a rendition type of an asset"""
 
     height: int
-    href: str
     original: bool
     profile: str
     width: int
+
+
+def traitkey(trait: TypedDict) -> str:
+    if trait.get("original") is True:
+        return "original"  # overrides all other
+    return ":".join(
+        f"{k}:{v}" for k, v in sorted((k, v) for k, v in trait.items() if v is not None)
+    )
+
+
+class AssetPreview(PreviewTrait):
+    href: str
+
+
+class AssetRendition(RenditionTrait):
+    href: str
 
 
 class BuiltinField(TypedDict):

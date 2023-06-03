@@ -1,8 +1,8 @@
-import requests
 from fastapi import HTTPException, status
 
-from . import Asset, api
+from . import api
 from .api import AssetRendition
+from .apitypes import Asset
 from .log import FotowareLog
 
 
@@ -24,12 +24,16 @@ def find_rendition(
     size: int = 0,
     width: int = 0,
     height: int = 0,
+    original: bool | None = None,
 ) -> AssetRendition | None:
     """Find the first rendition URL that qualifies with the specified constraints"""
+    qualified = data
+
     if profile is not None:
-        qualified = filter(lambda i: profile == i["profile"], data)
-    else:
-        qualified = data
+        qualified = filter(lambda i: profile == i["profile"], qualified)
+    if original is not None:
+        qualified = filter(lambda i: original == i["original"], qualified)
+
     # A SIZE equals the length of the longest side. Matching a minimum size, the shortest
     # (= min()) side should determine match.
     qualified = filter(lambda i: size <= min([i["height"], i["width"]]), qualified)
@@ -38,24 +42,26 @@ def find_rendition(
     return next(qualified)  # next = first = qualified[0]
 
 
-def rendition_location(rendition: AssetRendition) -> str:
-    service = api.rendition_request_service_url()
+async def rendition_location(rendition: AssetRendition) -> str:
+    service = await api.rendition_request_service_url()
     if service is None:
+        FotowareLog.error(f"There is no Fotoware endpoint for Rendition Requests.")
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     rendition_href = rendition["href"]
-    start_render = requests.post(
-        api.FOTOWARE_HOST + service,
-        headers={
-            "Content-Type": "application/vnd.fotoware.rendition-request+json",
-            "Accept": "application/vnd.fotoware.rendition-response+json",
-            **api.auth_header(),
-        },
-        json={"href": rendition_href},
-    )
-    if not start_render.ok:
-        FotowareLog.error(
-            f"Rendition request '{rendition_href}' failed ({start_render.status_code})"
+    try:
+        start_render = await api.SESSION.post(
+            api.FOTOWARE_HOST + service,
+            headers={
+                "Content-Type": "application/vnd.fotoware.rendition-request+json",
+                "Accept": "application/vnd.fotoware.rendition-response+json",
+                **await api.auth_header(),
+            },
+            json={"href": rendition_href},
         )
+        print(f"{start_render=}")
+        start_render.raise_for_status()
+        return start_render.headers["Location"]
+    except BaseException as e:
+        FotowareLog.error(f"Rendition request '{rendition_href}' failed ({e=})")
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return start_render.headers["Location"]

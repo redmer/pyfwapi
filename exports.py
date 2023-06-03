@@ -1,8 +1,6 @@
-import requests
-
-from ..config import FOTOWARE_EXPORT_PRESET_ID, FOTOWARE_HOST, HOST
-from . import Asset, api
-from .apitypes import ImageExport
+from ..config import FOTOWARE_EXPORT_PRESET_ID, HOST
+from . import api
+from .apitypes import Asset, ImageExport
 
 
 def can_be_exported(asset: Asset):
@@ -10,17 +8,17 @@ def can_be_exported(asset: Asset):
     return asset["doctype"] in ["image"]
 
 
-def export_locations(
+async def export_locations(
     asset_href: str, *, width: int = 0, height: int = 0
 ) -> ImageExport:
     """Returns the permanent locations of exported assets"""
-    response = requests.request(
+    r = await api.SESSION.request(
         "EXPORT",
-        FOTOWARE_HOST + asset_href,
+        asset_href,
         headers={
             "Content-Type": "application/vnd.fotoware.export-request+json",
             "Accept": "application/vnd.fotoware.export-data+json",
-            **api.auth_header(),
+            **await api.auth_header(),
         },
         json={
             "width": width,
@@ -29,4 +27,5 @@ def export_locations(
             "preset": f"/fotoweb/me/presets/export/{ FOTOWARE_EXPORT_PRESET_ID }",
         },
     )
-    return response.json()["export"]["image"]
+    data = await r.json()
+    return data["export"]["image"]

@@ -1,6 +1,5 @@
-import itertools
-from collections.abc import Generator
-from typing import Iterable
+from collections.abc import AsyncGenerator
+from typing import Any, Iterable
 from urllib.parse import quote
 
 from fastapi import HTTPException, status
@@ -13,57 +12,77 @@ from .search_expression import SE
 FOTOWARE_QUERY_PLACEHOLDER = "{?q}"
 
 
-def iter_paginated_assets(page_query: str) -> Generator[Asset, None, None]:
+async def iter_paginated_assets(page_query: str) -> AsyncGenerator[Asset, None]:
     """Collect all assets from the pages in a collection."""
 
-    full_results = GET(page_query)
+    page_url: str | None = page_query
 
-    # The key "assets" is present only on the first page of results / when
-    # representing a collection.
-    page = full_results.get("assets", full_results)
-    data = page.get("data")
+    while page_url is not None:
+        full_results = await GET(page_url)
 
-    if data:
+        # The key "assets" is present only on the first page of results / when
+        # representing a collection.
+        page: dict[str, Any] = full_results.get("assets", full_results)
+        data = page.get("data")  # type: list[Asset] | None
+
+        if data is None:
+            break
+
         logging.debug(f"Found {len(data)} assets")
-        yield from data
-    try:
-        next_url = page.get("paging", {}).get("next")
-        if next_url:
-            yield from iter_paginated_assets(next_url)
-    except AttributeError:
-        pass
+        for a in data:
+            yield a
+
+        page_url = None
+        try:
+            page_url = page.get("paging", {}).get("next")  # type: str | None
+        except AttributeError:
+            pass  # breaks if page_url is None
 
 
-def iter_archives(archives: Iterable[str], query: SE) -> Generator[Asset, None, None]:
+async def iter_archives(
+    archives: Iterable[str], query: SE
+) -> AsyncGenerator[Asset, None]:
     """Find all (paginated) assets that match the query across archives"""
 
     for a in archives:
-        search_base_url = search_url(a)
+        search_base_url = await search_url(a)
         if search_base_url is None:
             logging.error(f"Archive '{a}' cannot be searched")
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE)
 
         q = ";o=+?q=" + quote(str(query).strip())  # order by oldest modified
-        search_query = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
-        yield from iter_paginated_assets(search_query)
+        query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
+        async for asset in iter_paginated_assets(query_url):
+            yield asset
 
 
-def iter_n(archives: Iterable[str], query: SE, n: int = 25) -> Iterable[Asset]:
+async def iter_n(
+    archives: Iterable[str], query: SE, n: int = 25
+) -> AsyncGenerator[Asset, None]:
     """Find /n/ results for query across supplied archives"""
 
-    return itertools.islice(iter_archives(archives, query), n)
+    assets_iter = iter_archives(archives, query)
+    for _ in range(n):
+        try:
+            asset = await anext(assets_iter)
+            yield asset
+        except StopAsyncIteration:
+            pass
 
 
-def find_all(archives: Iterable[str], query: SE, n: int = 25) -> list[Asset]:
+async def find_all(archives: Iterable[str], query: SE, n: int = 25) -> list[Asset]:
     """Find /n/ results for query across supplied archives"""
 
-    return list(iter_n(archives, query, n))
+    results = []
+    async for asset in iter_n(archives, query, n):
+        results.append(asset)
+    return results
 
 
-def find(archives: Iterable[str], query: SE) -> Asset:
+async def find(archives: Iterable[str], query: SE) -> Asset:
     """Find a single asset that matches query in all supplied archives"""
 
-    assets = find_all(archives, query, n=2)
+    assets = await find_all(archives, query, n=2)
 
     if len(assets) == 0:
         logging.error(f"No assets match '{query}' (in archives {archives})")

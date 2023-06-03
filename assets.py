@@ -1,16 +1,15 @@
-import time
-from typing import Iterator
+from asyncio import sleep
 
-import requests
+import aiohttp
 from fastapi import HTTPException, status
 
 from ..config import PUBLIC_DOCTYPES, PUBLIC_METADATA_KEY, PUBLIC_METADATA_VALUE
-from . import Asset, api
-from .exports import export_locations
+from . import api
+from .apitypes import Asset
 from .log import FotowareLog
 
 ASSET_DOCTYPE = ["image", "movie", "audio", "document", "graphic", "generic"]
-NUM_CONNECTION_RETRIES = 5
+NUM_CONNECTION_RETRIES = 10
 
 
 def is_public(asset: Asset):
@@ -20,27 +19,30 @@ def is_public(asset: Asset):
     )
 
 
-def stream_asset(asset_href: str) -> Iterator[bytes]:
-    href = export_locations(asset_href)
-    return retrying_get_binary(href["doubleResolution"])
+def builtin_field(asset: Asset, name: str):
+    for field in asset["builtinFields"]:
+        if field["field"] == name:
+            return field["value"]
+    return None
 
 
-def retrying_get_binary(href: str) -> Iterator[bytes]:
+def metadata_field(asset: Asset, name: str):
+    for k, v in asset["metadata"].items():
+        if k == name:
+            return v["value"]
+    return None
+
+
+async def retrying_response(href: str) -> aiohttp.ClientResponse:
     """Try and retry to get the binary stream of a file"""
     retries = int(NUM_CONNECTION_RETRIES)
-    while True:
-        asset = requests.get(href, headers=api.auth_header(), stream=True)
-        if asset.status_code == 200:
-            return asset.iter_content()
-        if retries == 0:
-            FotowareLog.error(
-                f"Download '{href}' failed ({asset.status_code}) after {NUM_CONNECTION_RETRIES}"
-            )
-            raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT)
+    while retries > 0:
+        asset = await api.SESSION.get(href, headers=await api.auth_header())
+        if asset.status == 200:
+            return asset
 
         retries -= 1
-        time.sleep(0.5)
+        await sleep(0.5)
 
-
-def unstream(stream: Iterator[bytes]) -> bytes:
-    return b"".join(stream) or b""
+    FotowareLog.error(f"Download '{href}' failed after {NUM_CONNECTION_RETRIES}")
+    raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT)

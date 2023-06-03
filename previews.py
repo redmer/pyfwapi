@@ -1,8 +1,6 @@
-from typing import Iterator
+import aiohttp
 
-import requests
-from fastapi import HTTPException, status
-
+from ..config import FOTOWARE_HOST
 from . import api
 
 
@@ -29,14 +27,14 @@ def find_preview(
     return next(qualified)  # next = first = qualified[0]
 
 
-def stream_preview(preview: api.AssetPreview, previewToken: str) -> Iterator[bytes]:
+async def preview_response(
+    preview: api.AssetPreview, previewToken: str
+) -> aiohttp.ClientResponse:
     """Return the preview image binary. PreviewToken is a property of the asset."""
-    content = requests.get(
-        api.FOTOWARE_HOST + preview["href"],
-        headers={"Authorization": f"Bearer {previewToken}"},
-        stream=True,
-    )
 
-    if not content.ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
-    return content.iter_content(None)
+    resp = await api.SESSION.get(
+        FOTOWARE_HOST + preview["href"],
+        headers={"Authorization": f"Bearer {previewToken}"},
+    )
+    resp.raise_for_status()
+    return resp

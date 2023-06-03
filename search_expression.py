@@ -1,10 +1,12 @@
 from collections import UserString
 from enum import StrEnum
 
+
 class Predicate(StrEnum):
-    FileModificationFrom= "mtf"
+    FileModificationFrom = "mtf"
     FileName = "fn"
     # ... other predicates not implemented yet
+
 
 class SE(UserString):
     """
