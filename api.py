@@ -6,11 +6,16 @@ from aiohttp import ClientSession
 from aiohttp_client_cache.backends.redis import RedisBackend
 from aiohttp_client_cache.session import CachedSession
 
-from ..config import FOTOWARE_CLIENT_ID, FOTOWARE_CLIENT_SECRET, FOTOWARE_HOST
+from ..config import (
+    FOTOWARE_CLIENT_ID,
+    FOTOWARE_CLIENT_SECRET,
+    FOTOWARE_HOST,
+    REDIS_HOST,
+)
 from .apitypes import *
 from .log import FotowareLog
 
-CACHE = RedisBackend(address="redis://redis", expire_after=timedelta(hours=1))
+CACHE = RedisBackend(address=f"redis://{REDIS_HOST}", expire_after=timedelta(hours=1))
 SESSION = CachedSession(cache=CACHE)  # type: ClientSession
 
 
