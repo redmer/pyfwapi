@@ -1,7 +1,9 @@
 import aiohttp
+from fastapi import HTTPException, status
 
 from ..config import FOTOWARE_HOST
 from . import api
+from .log import FotowareLog
 
 
 def has_previews(asset: api.Asset) -> bool:
@@ -36,5 +38,10 @@ async def preview_response(
         FOTOWARE_HOST + preview["href"],
         headers={"Authorization": f"Bearer {previewToken}"},
     )
-    resp.raise_for_status()
+
+    if not resp.ok:
+        reason = await resp.text()
+        FotowareLog.error(f"Rendition request '{preview['href']}' failed ({reason})")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=reason)
+
     return resp

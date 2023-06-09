@@ -5,6 +5,7 @@ from typing import Tuple
 from aiohttp import ClientSession
 from aiohttp_client_cache.backends.redis import RedisBackend
 from aiohttp_client_cache.session import CachedSession
+from fastapi import HTTPException, status
 
 from ..config import (
     FOTOWARE_CLIENT_ID,
@@ -90,7 +91,12 @@ async def PATCH(path, *, headers={}, data={}, **patch_kwargs) -> dict:
         json=data,
         **patch_kwargs,
     )
-    r.raise_for_status()
+
+    if not r.ok:
+        reason = await r.text()
+        FotowareLog.error(f"Patch request '{path}' failed ({reason})")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=reason)
+
     return await r.json()
 
 

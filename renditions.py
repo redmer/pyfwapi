@@ -49,19 +49,19 @@ async def rendition_location(rendition: AssetRendition) -> str:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     rendition_href = rendition["href"]
-    try:
-        start_render = await api.SESSION.post(
-            api.FOTOWARE_HOST + service,
-            headers={
-                "Content-Type": "application/vnd.fotoware.rendition-request+json",
-                "Accept": "application/vnd.fotoware.rendition-response+json",
-                **await api.auth_header(),
-            },
-            json={"href": rendition_href},
-        )
-        print(f"{start_render=}")
-        start_render.raise_for_status()
-        return start_render.headers["Location"]
-    except BaseException as e:
-        FotowareLog.error(f"Rendition request '{rendition_href}' failed ({e=})")
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
+    start_render = await api.SESSION.post(
+        api.FOTOWARE_HOST + service,
+        headers={
+            "Content-Type": "application/vnd.fotoware.rendition-request+json",
+            "Accept": "application/vnd.fotoware.rendition-response+json",
+            **await api.auth_header(),
+        },
+        json={"href": rendition_href},
+    )
+
+    if not start_render.ok:
+        reason = await start_render.text()
+        FotowareLog.error(f"Rendition request '{rendition_href}' failed ({reason})")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=reason)
+
+    return start_render.headers["Location"]
