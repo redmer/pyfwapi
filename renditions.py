@@ -1,8 +1,7 @@
 from fastapi import HTTPException, status
 
 from . import api
-from .api import AssetRendition
-from .apitypes import Asset
+from .apitypes import Asset, AssetRendition
 from .log import FotowareLog
 
 
@@ -13,7 +12,7 @@ def has_renditions(asset: Asset):
 
 def original_rendition(renditions: list[AssetRendition]) -> AssetRendition:
     """Return the original rendition of the asset"""
-    qualified = filter(lambda r: True == r["original"], renditions)
+    qualified = filter(lambda r: True is r["original"], renditions)
     return next(qualified)
 
 
@@ -45,7 +44,7 @@ def find_rendition(
 async def rendition_location(rendition: AssetRendition) -> str:
     service = await api.rendition_request_service_url()
     if service is None:
-        FotowareLog.error(f"There is no Fotoware endpoint for Rendition Requests.")
+        FotowareLog.error("There is no Fotoware endpoint for Rendition Requests.")
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     rendition_href = rendition["href"]

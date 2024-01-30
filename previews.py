@@ -2,23 +2,23 @@ import aiohttp
 from fastapi import HTTPException, status
 
 from ..config import FOTOWARE_HOST
-from . import api
+from . import api, apitypes
 from .log import FotowareLog
 
 
-def has_previews(asset: api.Asset) -> bool:
+def has_previews(asset: apitypes.Asset) -> bool:
     """This asset has pre-rendered previews"""
     return "previews" in asset
 
 
 def find_preview(
-    data: list[api.AssetPreview],
+    data: list[apitypes.AssetPreview],
     *,
     size: int = 0,
     width: int = 0,
     height: int = 0,
     square: bool | None = None,
-) -> api.AssetPreview | None:
+) -> apitypes.AssetPreview | None:
     """Find the first preview URL that qualifies with the specified constraints"""
     qualified = filter(lambda i: size <= i["size"], data)
     qualified = filter(lambda i: width <= i["width"], qualified)
@@ -30,7 +30,7 @@ def find_preview(
 
 
 async def preview_response(
-    preview: api.AssetPreview, previewToken: str
+    preview: apitypes.AssetPreview, previewToken: str
 ) -> aiohttp.ClientResponse:
     """Return the preview image binary. PreviewToken is a property of the asset."""
 

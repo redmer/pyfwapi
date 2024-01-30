@@ -13,11 +13,10 @@ from ..config import (
     FOTOWARE_HOST,
     REDIS_HOST,
 )
-from .apitypes import *
 from .log import FotowareLog
 
 CACHE = RedisBackend(address=f"redis://{REDIS_HOST}", expire_after=timedelta(hours=1))
-SESSION = CachedSession(cache=CACHE)  # type: ClientSession
+SESSION: ClientSession = CachedSession(cache=CACHE)
 
 
 FOTOWARE_ACCESS_TOKEN: str | None = None
@@ -31,7 +30,7 @@ async def access_token() -> str:
     global FW_ACCESS_TOKEN_EXP
 
     async def request_new_access_token() -> Tuple[str, float]:
-        FotowareLog.debug(f"Requesting NEW access token")
+        FotowareLog.debug("Requesting NEW access token")
         r = await SESSION.post(
             # r = await fwclient.post(
             FOTOWARE_HOST + "/fotoweb/oauth2/token",
