@@ -1,4 +1,4 @@
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, Union
 
 
 class PreviewTrait(TypedDict):
@@ -14,12 +14,13 @@ class RenditionTrait(TypedDict):
     """Traits of a rendition type of an asset"""
 
     height: int
-    original: bool
-    profile: str
+    original: bool | None
+    profile: str | None
+    size: int
     width: int
 
 
-def traitkey(trait: TypedDict) -> str:
+def traitkey(trait: Union[PreviewTrait, RenditionTrait]) -> str:
     if trait.get("original") is True:
         return "original"  # overrides all other
     return ":".join(
