@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import json
 from datetime import datetime, timedelta
 from typing import Tuple
@@ -5,7 +6,7 @@ from typing import Tuple
 from aiohttp import ClientSession
 from aiohttp_client_cache.backends.redis import RedisBackend
 from aiohttp_client_cache.session import CachedSession
-from fastapi import HTTPException, status
+from fastapi import FastAPI, HTTPException, status
 
 from ..config import (
     FOTOWARE_CLIENT_ID,
@@ -15,12 +16,18 @@ from ..config import (
 )
 from .log import FotowareLog
 
-CACHE = RedisBackend(address=f"redis://{REDIS_HOST}", expire_after=timedelta(hours=1))
+CACHE = RedisBackend(address=f"redis://{REDIS_HOST}", expire_after=timedelta(days=1))
 SESSION: ClientSession = CachedSession(cache=CACHE)
 
 
 FOTOWARE_ACCESS_TOKEN: str | None = None
 FW_ACCESS_TOKEN_EXP: datetime = datetime.utcnow()
+
+
+@asynccontextmanager
+async def api_lifespan(app: FastAPI):
+    yield
+    await SESSION.close()
 
 
 async def access_token() -> str:
