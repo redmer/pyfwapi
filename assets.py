@@ -3,7 +3,12 @@ from asyncio import sleep
 import aiohttp
 from fastapi import HTTPException, status
 
-from ..config import PUBLIC_DOCTYPES, PUBLIC_METADATA_KEY, PUBLIC_METADATA_VALUE
+from ..config import (
+    PUBLIC_DOCTYPES,
+    PUBLIC_METADATA_KEY,
+    PUBLIC_METADATA_VALUE,
+    PUBLIC_ARCHIVES,
+)
 from . import api
 from .apitypes import Asset
 from .log import FotowareLog
@@ -12,10 +17,17 @@ ASSET_DOCTYPE = ["image", "movie", "audio", "document", "graphic", "generic"]
 NUM_CONNECTION_RETRIES = 10
 
 
-def is_public(asset: Asset):
-    return asset.get("doctype") in PUBLIC_DOCTYPES or (
-        asset.get("metadata", {}).get(PUBLIC_METADATA_KEY, {}).get("value")
-        == PUBLIC_METADATA_VALUE
+def is_public(asset: Asset) -> bool:
+    """
+    True if an Asset's document type OR archive OR metadata value allows it to be public.
+    """
+    return any(
+        [
+            asset.get("doctype") in PUBLIC_DOCTYPES,
+            str(asset.get("archiveId")) in PUBLIC_ARCHIVES,
+            asset.get("metadata", {}).get(PUBLIC_METADATA_KEY, {}).get("value")
+            == PUBLIC_METADATA_VALUE,
+        ]
     )
 
 

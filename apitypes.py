@@ -65,6 +65,7 @@ class Asset(TypedDict):
     previews: list[AssetPreview]
     previewToken: str
     renditions: list[AssetRendition]
+    archiveId: int
 
 
 class ImageExport(TypedDict):
