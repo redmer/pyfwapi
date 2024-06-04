@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Tuple
 
 from aiohttp import ClientSession
@@ -21,7 +21,7 @@ SESSION: ClientSession = CachedSession(cache=CACHE)
 
 
 FOTOWARE_ACCESS_TOKEN: str | None = None
-FW_ACCESS_TOKEN_EXP: datetime = datetime.utcnow()
+FW_ACCESS_TOKEN_EXP: datetime = datetime.now(UTC)
 
 
 @asynccontextmanager
@@ -52,12 +52,12 @@ async def access_token() -> str:
         response = await r.json()
         return response["access_token"], response["expires_in"]
 
-    if FW_ACCESS_TOKEN_EXP <= datetime.utcnow():  # invalidate if expired
+    if FW_ACCESS_TOKEN_EXP <= datetime.now(UTC):  # invalidate if expired
         FOTOWARE_ACCESS_TOKEN = None
 
     if FOTOWARE_ACCESS_TOKEN is None:
         FOTOWARE_ACCESS_TOKEN, exp_in_seconds = await request_new_access_token()
-        FW_ACCESS_TOKEN_EXP = datetime.utcnow() + timedelta(seconds=exp_in_seconds)
+        FW_ACCESS_TOKEN_EXP = datetime.now(UTC) + timedelta(seconds=exp_in_seconds)
         FotowareLog.info(
             f"New token expires at {FW_ACCESS_TOKEN_EXP.isoformat(timespec='minutes')}"
         )
