@@ -17,7 +17,7 @@ from ..config import (
 from .log import FotowareLog
 
 CACHE = RedisBackend(address=f"redis://{REDIS_HOST}", expire_after=timedelta(days=1))
-SESSION: ClientSession = CachedSession(cache=CACHE)
+SESSION: ClientSession
 
 
 FOTOWARE_ACCESS_TOKEN: str | None = None
@@ -26,6 +26,8 @@ FW_ACCESS_TOKEN_EXP: datetime = datetime.now(UTC)
 
 @asynccontextmanager
 async def api_lifespan(app: FastAPI):
+    global SESSION
+    SESSION = CachedSession(cache=CACHE)
     yield
     await SESSION.close()
 
