@@ -38,7 +38,8 @@ def find_rendition(
     qualified = filter(lambda i: size <= min([i["height"], i["width"]]), qualified)
     qualified = filter(lambda i: width <= i["width"], qualified)
     qualified = filter(lambda i: height <= i["height"], qualified)
-    return next(qualified)  # next = first = qualified[0]
+
+    return next(qualified, None)  # next = first = qualified[0]
 
 
 async def rendition_location(rendition: AssetRendition) -> str:
