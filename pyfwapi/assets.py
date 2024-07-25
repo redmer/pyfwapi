@@ -4,10 +4,10 @@ import aiohttp
 from fastapi import HTTPException, status
 
 from ..config import (
+    PUBLIC_ARCHIVES,
     PUBLIC_DOCTYPES,
     PUBLIC_METADATA_KEY,
     PUBLIC_METADATA_VALUE,
-    PUBLIC_ARCHIVES,
 )
 from . import api
 from .apitypes import Asset

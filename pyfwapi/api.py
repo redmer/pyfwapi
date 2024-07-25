@@ -1,37 +1,26 @@
-from contextlib import asynccontextmanager
 import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Tuple
 
 from aiohttp import ClientSession
-from aiohttp_client_cache.backends.redis import RedisBackend
-from aiohttp_client_cache.session import CachedSession
-from fastapi import FastAPI, HTTPException, status
+from fastapi import HTTPException, status
+from typing_extensions import deprecated
 
 from ..config import (
     FOTOWARE_CLIENT_ID,
     FOTOWARE_CLIENT_SECRET,
     FOTOWARE_HOST,
-    REDIS_HOST,
 )
 from .log import FotowareLog
 
-CACHE = RedisBackend(address=f"redis://{REDIS_HOST}", expire_after=timedelta(days=1))
-SESSION: ClientSession
+SESSION = ClientSession()
 
 
 FOTOWARE_ACCESS_TOKEN: str | None = None
 FW_ACCESS_TOKEN_EXP: datetime = datetime.now(UTC)
 
 
-@asynccontextmanager
-async def api_lifespan(app: FastAPI):
-    global SESSION
-    SESSION = CachedSession(cache=CACHE)
-    yield
-    await SESSION.close()
-
-
+@deprecated("Use FotoWareTenant")
 async def access_token() -> str:
     """Get the OAuth2 Access Token from the environment variables CLIENT_ID and CLIENT_SECRET"""
 
@@ -67,6 +56,7 @@ async def access_token() -> str:
     return FOTOWARE_ACCESS_TOKEN
 
 
+@deprecated("Use FotoWareTenant.GET")
 async def GET(path, *, headers={}, **get_kwargs) -> dict:
     """GET request on the Fotoware ENDPOINT_HOST. Returns JSON."""
     FotowareLog.debug(f"GET {path} (with auth)")
@@ -79,11 +69,13 @@ async def GET(path, *, headers={}, **get_kwargs) -> dict:
     return await r.json()
 
 
+@deprecated("Use FotoWareTenant")
 async def auth_header() -> dict[str, str]:
     """Return Authorization header as a dict"""
     return {"Authorization": f"Bearer {await access_token()}"}
 
 
+@deprecated("Use FotoWareTenant.PATCH")
 async def PATCH(path, *, headers={}, data={}, **patch_kwargs) -> dict:
     """PATCH request on the Fotoware ENDPOINT_HOST"""
     FotowareLog.debug(f"PATCH {path} (with auth) {json.dumps(data)}")
