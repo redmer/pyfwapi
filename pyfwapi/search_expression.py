@@ -3,9 +3,28 @@ from enum import StrEnum
 
 
 class Predicate(StrEnum):
+    FileModification = "mt"
     FileModificationFrom = "mtf"
+    FileModificationTo = "mtt"
+
+    FileSize = "fs"
+    FileSizeFrom = "fsf"
+    FileSizeTo = "fst"
+
+    PixelHeight = "ph"
+    PixelHeightFrom = "phf"
+    PixelHeightTo = "pht"
+
+    PixelWidth = "pw"
+    PixelWidthFrom = "pwf"
+    PixelWidthTo = "pwt"
+
     FileName = "fn"
-    # ... other predicates not implemented yet
+    DirectoryName = "dn"
+    FullFilePath = "fp"
+    ColorSpace = "cs"
+    ImageOrientation = "o"
+    AssetType = "dt"
 
 
 class SE(UserString):
