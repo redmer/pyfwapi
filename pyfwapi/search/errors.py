@@ -1,0 +1,2 @@
+class SearchSyntaxError(ValueError):
+    pass

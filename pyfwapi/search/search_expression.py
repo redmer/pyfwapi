@@ -1,191 +1,113 @@
-import textwrap
 import typing as t
-from dataclasses import dataclass
-from datetime import date, datetime
-from enum import StrEnum
+
+from pyfwapi.model.asset import (
+    AssetTypeValues,
+    ColorSpaceValues,
+    ImageOrientationValues,
+)
+from pyfwapi.search.ast import (
+    AND,
+    DATE_TYPES,
+    FIELD,
+    FIELD_EMPTY,
+    FIELD_EQ,
+    FIELD_TYPES,
+    NOT,
+    OR,
+    VAL_RANGE,
+    VALUE,
+    VALUE_TYPES,
+    SearchExpressionAST,
+)
+from pyfwapi.search.errors import SearchSyntaxError
+from pyfwapi.search.predicates import Ranged, StrSpecial
 
 
-class SearchSyntaxError(ValueError):
-    pass
-
-
-class Predicate(StrEnum):
-    FileModification = "mt"
-    FileModificationFrom = "mtf"
-    FileModificationTo = "mtt"
-
-    FileSize = "fs"
-    FileSizeFrom = "fsf"
-    FileSizeTo = "fst"
-
-    PixelHeight = "ph"
-    PixelHeightFrom = "phf"
-    PixelHeightTo = "pht"
-
-    PixelWidth = "pw"
-    PixelWidthFrom = "pwf"
-    PixelWidthTo = "pwt"
-
-    FileName = "fn"
-    DirectoryName = "dn"
-    FullFilePath = "fp"
-    ColorSpace = "cs"
-    ImageOrientation = "o"
-    AssetType = "dt"
-
-
-@dataclass
-class SearchExpressionAST:
-    """
-    An Abstract Syntax Tree for FotoWare Search Expressions. You can probably better use
-    SE (Seach Expression) for an easier, fluent-style API.
-    """
-
-    type: t.Literal[
-        "AND", "OR", "NOT", "FIELD_EQ", "FIELD", "VAL_RANGE", "VALUE", "NOOP"
-    ]
-    args: tuple[t.Self | str, t.Self | str | None]
-
-    def __str__(self) -> str:
-        arg1, arg2 = self.args
-        match self.type:
-            case "VALUE" | "FIELD":
-                return str(arg1)
-            case "VAL_RANGE":
-                return f"{str(arg1)}~~{str(arg2)}"
-            case "FIELD_EQ":
-                return f"{str(arg1)}:{str(arg2)}"
-            case "NOT":
-                return f"NOT ( {str(arg1)} )"
-            case "OR" | "AND":
-                return f"( {str(arg1)} ) {self.type} ( {str(arg2)} )"
-            case _:
-                return ""
-
-    def __repr__(self) -> str:
-        arg1, arg2 = self.args
-        if arg2 is None:
-            return f"""( {self.type} {repr(arg1)} )"""
-        return f"""( {self.type}
-{textwrap.indent( repr(arg1), "    "*2)}
-{textwrap.indent( repr(arg2), "    "*2)}
-)"""
-
-    # MARK: Terminals
-    @classmethod
-    def VALUE(cls, value: str | int | date | datetime):
-        if isinstance(value, str) and " " in value:
-            value = f'"{value}"'
-        if isinstance(value, datetime):
-            value = value.isoformat(sep="T", timespec="minutes")
-        if isinstance(value, date):
-            value = value.isoformat()
-        return cls(type="VALUE", args=(str(value), None))
-
-    @classmethod
-    def FIELD(cls, fieldname: str | int):
-        return cls(type="FIELD", args=(str(fieldname), None))
-
-    # MARK: Non-terminals
-    @classmethod
-    def VAL_RANGE(cls, start_value: t.Self, end_value: t.Self):
-        return cls(type="VAL_RANGE", args=(start_value, end_value))
-
-    @classmethod
-    def FIELD_EMPTY(cls, field: t.Self):
-        return cls(type="FIELD_EQ", args=(field, cls.VALUE("")))
-
-    @classmethod
-    def FIELD_EQ(cls, field: t.Self, value: t.Self):
-        if not isinstance(value, cls) or field.type != "FIELD":
-            raise NotImplementedError()
-        return cls(type="FIELD_EQ", args=(field, value))
-
-    @classmethod
-    def NOT(cls, lhs: t.Self):
-        if not isinstance(lhs, cls):
-            raise NotImplementedError()
-        return cls(type="NOT", args=(lhs, None))
-
-    @classmethod
-    def OR(cls, lhs: t.Self, rhs: t.Self):
-        if not isinstance(rhs, cls):
-            raise NotImplementedError()
-        return cls(type="OR", args=(lhs, rhs))
-
-    @classmethod
-    def AND(cls, lhs: t.Self, rhs: t.Self):
-        if not isinstance(rhs, cls):
-            raise NotImplementedError()
-        return cls(type="AND", args=(lhs, rhs))
-
-
-# SearchExpression
 class SE:
     """
     Search Expression. A fluent-style builder for Full Text Search, predicated search,
-    search for ranges, combinable with `|` (OR), `&` (AND) and `-` (NOT).
+    search for ranges and infinitely combinable with boolean operators.
 
-    Every method returns itself, so you can combine multiple filters easily. By default,
-    these are combined using AND.
+    Every method returns a copy of itself, so you can combine multiple filters easily.
+    These are generally combined using AND. Use `|` `OR()` and `-` `NOT()` to combine
+    terms in other ways (for explicitely query building, you may also use `&` `AND()`).
 
     >>> SE()
             .range("dt", min=today() - timedelta(days=2, hours=4), max=today())
             | SE().eq("fn", "*.png")
             & SE().fts("example").fts("pride")
 
+    Note that for `empty()`, the index manager MUST index empty values for that field.
+    Otherwise, results may be incomplete.
+
+    Some fields have specialized matching functions, like `assettype`, `colorspace`,
+    `image_orientation`, `modification`, `filesize`, `pixel_height`, `pixel_width`.
+
     Reference: <https://learn.fotoware.com/FotoWare_SaaS/Navigating_and_searching_to_find_your_assets/Searching_in_FotoWare/001_Searching_for_assets/FotoWare_Search_Expressions_Reference>
     """
 
     data: SearchExpressionAST | None
 
-    def __init__(self) -> None:
-        self.data = None
-        pass
+    def __init__(self, ast: SearchExpressionAST | None = None) -> None:
+        self.data = ast
 
     def fts(self, value: str, /):
-        """Full text search"""
+        """Search across all metadata (full text search)"""
 
-        ast = SearchExpressionAST.VALUE(value)
-
-        self.data = SearchExpressionAST.AND(self.data, ast) if self.data else ast
-        return self
+        ast = VALUE(value)
+        return SE(AND(self.data, ast) if self.data else ast)
 
     def empty(self, field: str | int, /):
         """Search for empty values"""
-        ast = SearchExpressionAST.FIELD_EMPTY(SearchExpressionAST.FIELD(field))
+        ast = FIELD_EMPTY(FIELD(field))
+        return SE(AND(self.data, ast) if self.data else ast)
 
-        self.data = SearchExpressionAST.AND(self.data, ast) if self.data else ast
-        return self
+    @t.overload
+    def eq(self, field: StrSpecial, value: str, /): ...
+    @t.overload
+    def eq(self, field: FIELD_TYPES, value: VALUE_TYPES, /): ...
+    def eq(self, field: FIELD_TYPES | StrSpecial, value: VALUE_TYPES, /):
+        """Search for an exact field value"""
 
-    def eq(self, field: str | int, value: str | int | date | datetime, /):
-        """Search for field that equals value"""
+        ast = FIELD_EQ(FIELD(field), VALUE(value))
+        return SE(AND(self.data, ast) if self.data else ast)
 
-        ast = SearchExpressionAST.FIELD_EQ(
-            SearchExpressionAST.FIELD(field), SearchExpressionAST.VALUE(value)
-        )
+    def colorspace(self, value: ColorSpaceValues, /) -> t.Self:
+        return self.eq(StrSpecial.ColorSpace, value)
 
-        self.data = SearchExpressionAST.AND(self.data, ast) if self.data else ast
-        return self
+    def image_orientation(self, value: ImageOrientationValues, /) -> t.Self:
+        return self.eq(StrSpecial.ImageOrientation, value)
 
-    def range(
-        self,
-        field: str | int,
-        /,
-        *,
-        min: str | int | date | datetime,
-        max: str | int | date | datetime,
-    ):
+    def assettype(self, value: AssetTypeValues, /) -> t.Self:
+        return self.eq(StrSpecial.AssetType, value)
+
+    def range(self, field: FIELD_TYPES | Ranged, min: VALUE_TYPES, max: VALUE_TYPES, /):
         """Search for field values in range"""
-        ast = SearchExpressionAST.FIELD_EQ(
-            SearchExpressionAST.FIELD(field),
-            SearchExpressionAST.VAL_RANGE(
-                SearchExpressionAST.VALUE(min), SearchExpressionAST.VALUE(max)
-            ),
-        )
+        ast = FIELD_EQ(FIELD(field), VAL_RANGE(VALUE(min), VALUE(max)))
+        return SE(AND(self.data, ast) if self.data else ast)
 
-        self.data = SearchExpressionAST.AND(self.data, ast) if self.data else ast
-        return self
+    def _minmax(
+        self, field: Ranged, min: VALUE_TYPES | None, max: VALUE_TYPES | None, /
+    ):
+        if min is not None and max is not None:
+            return self.range(field, min, max)
+        if min is not None:
+            return self.eq(str(field) + "f", min)
+        if max is not None:
+            return self.eq(str(field) + "t", max)
+        raise SearchSyntaxError("A ranged value must have either a min, a max or both.")
+
+    def modification(self, min: DATE_TYPES | None, max: DATE_TYPES | None, /):
+        return self._minmax(Ranged.FileModification, min, max)
+
+    def filesize(self, min: int | None, max: int | None, /):
+        return self._minmax(Ranged.FileSize, min, max)
+
+    def pixel_height(self, min: int | None, max: int | None, /):
+        return self._minmax(Ranged.PixelHeight, min, max)
+
+    def pixel_width(self, min: int | None, max: int | None, /):
+        return self._minmax(Ranged.PixelWidth, min, max)
 
     def NOT(self, other: t.Self | None = None, /):
         """
@@ -194,18 +116,14 @@ class SE:
         """
         if self.data:
             if other and other.data:
-                self.data = SearchExpressionAST.AND(
-                    self.data, SearchExpressionAST.NOT(other.data)
-                )
-            else:  # zero argument, negates itself
-                self.data = SearchExpressionAST.NOT(self.data)
-        else:  # zero self.data, negates other
-            if other and other.data:
-                self.data = SearchExpressionAST.NOT(other.data)
-            else:
-                raise SearchSyntaxError("No initialized parts in a negated SE")
+                return SE(AND(self.data, NOT(other.data)))
 
-        return self
+            return SE(NOT(self.data))  # zero argument, negates itself
+
+        if other and other.data:
+            return SE(NOT(other.data))
+
+        raise SearchSyntaxError("Uninitialized SE in a NOT expression")
 
     def __neg__(self):
         return self.NOT()
@@ -213,8 +131,7 @@ class SE:
     def OR(self, other: t.Self, /):
         if other.data is None or self.data is None:
             raise SearchSyntaxError("Uninitialized SE in an OR expression")
-        self.data = SearchExpressionAST.OR(self.data, other.data)
-        return self
+        return SE(OR(self.data, other.data))
 
     def __or__(self, other):
         if not isinstance(other, self.__class__):
@@ -224,8 +141,7 @@ class SE:
     def AND(self, other: t.Self, /):
         if other.data is None or self.data is None:
             raise SearchSyntaxError("Uninitialized SE in an AND expression")
-        self.data = SearchExpressionAST.AND(self.data, other.data)
-        return self
+        return SE(AND(self.data, other.data))
 
     def __and__(self, other):
         if not isinstance(other, self.__class__):
@@ -237,3 +153,6 @@ class SE:
 
     def __repr__(self) -> str:
         return f"""SE(ast={repr(self.data)})"""
+
+
+__all__ = ["SE"]
