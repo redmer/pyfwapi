@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyfwapi"
-version = "0.2.0"
+version = "0.2.1"
 description = "Work with the Fotoware API in Python"
 authors = ["Redmer Kronemeijer <12477216+redmer@users.noreply.github.com>"]
 license = "mpl-2.0"
