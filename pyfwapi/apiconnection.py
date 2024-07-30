@@ -3,10 +3,10 @@ import typing as t
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from httpx import Response
-from pydantic import BaseModel
 
 from pyfwapi.errors import APIError
 from pyfwapi.log import FotowareLog
+from pyfwapi.model.basemodel import APIResponse
 
 
 class APIConnection:
@@ -124,7 +124,7 @@ class APIConnection:
         r.raise_for_status()
         return r
 
-    async def paginated[T: BaseModel](
+    async def paginated[T: APIResponse](
         self, path: str, /, *, type: type[T], headers: t.Mapping[str, str] = {}
     ) -> t.AsyncGenerator[T, None]:
         """
@@ -132,7 +132,7 @@ class APIConnection:
 
         Args:
             path: the resource endpoint, starting with /
-            type: the Pydantic type that will be instantiated
+            type: the response JSON type (APIResponse)
             headers: arbitrary HTTP headers for this request
         """
         page_url: str | None = path

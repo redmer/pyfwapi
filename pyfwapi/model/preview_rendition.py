@@ -1,8 +1,10 @@
-from pydantic import BaseModel, field_validator
+from pydantic import field_validator
 from pydantic_core.core_schema import FieldValidationInfo
 
+from pyfwapi.model.basemodel import APIResponse
 
-class CommonTrait(BaseModel):
+
+class CommonTrait(APIResponse):
     """Traits in common between Previews and Rendition types"""
 
     width: int = -1
@@ -38,5 +40,5 @@ class AssetRendition(RenditionTrait):
     href: str
 
     display_name: str
-    description: str
+    description: str | None
     default: bool

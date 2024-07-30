@@ -1,8 +1,6 @@
 import typing as t
 from datetime import datetime
 
-from pydantic import BaseModel
-
 from pyfwapi.model.basemodel import APIResponse
 from pyfwapi.model.preview_rendition import AssetPreview, AssetRendition
 
@@ -10,32 +8,37 @@ type BuiltinFieldName = t.Literal[
     "title", "description", "tags", "notes", "status", "rating"
 ]
 type MetadataFieldType = str | bool | list[str]
+type ColorSpaceValues = t.Literal["grayscale", "rgb", "cmyk", "unknown"]
+type ImageOrientationValues = t.Literal["portrait", "landscape"]
+type AssetTypeValues = t.Literal[
+    "image", "movie", "audio", "document", "graphic", "generic"
+]
 
 
-class BuiltinField(BaseModel):
+class BuiltinField(APIResponse):
     """A built-in metadata field (title, description, etc.)"""
 
     field: BuiltinFieldName
     required: bool
-    value: MetadataFieldType
+    value: MetadataFieldType | None
 
 
-class MetadataField(BaseModel):
+class MetadataField(APIResponse):
     """Any metadata field (that is, not built-in)"""
 
     value: MetadataFieldType
 
 
-class ImageAttributes(BaseModel):
+class ImageAttributes(APIResponse):
     pixelwidth: int
     pixelheight: int
     resolution: float
     flipmirror: int
     rotation: int
-    colorspace: str
+    colorspace: ColorSpaceValues
 
 
-class Attributes(BaseModel):
+class Attributes(APIResponse):
     imageattributes: ImageAttributes | None = None
 
 
@@ -44,13 +47,16 @@ class Asset(APIResponse):
 
     href: str
     physicalFileId: str
+    linkstance: str
 
     filename: str
     filesize: int
-    doctype: t.Literal["image", "movie", "audio", "document", "graphic", "generic"]
+
+    doctype: AssetTypeValues
     created: datetime | None
     modified: datetime | None
     archiveId: int
+    archiveHREF: str
 
     builtinFields: list[BuiltinField]
     metadata: dict[int, MetadataField]
@@ -59,6 +65,7 @@ class Asset(APIResponse):
     previews: list[AssetPreview] | None
     previewToken: str
     renditions: list[AssetRendition] | None
+    quickRenditions: list[AssetRendition] | None
 
     archiveId: int
 

@@ -4,15 +4,12 @@ from urllib.parse import quote
 from pyfwapi.apiconnection import APIConnection
 from pyfwapi.errors import ArchiveNotSearchableError
 from pyfwapi.log import FotowareLog
-from pyfwapi.model.archive import Archive
 from pyfwapi.model.asset import Asset
-from pyfwapi.model.me import InstanceInfo
+from pyfwapi.model.collection import Collection
+from pyfwapi.model.instance_info import FieldNamespace, InstanceInfo, KnownMetadataField
 from pyfwapi.model.preview_rendition import AssetPreview, AssetRendition
-from pyfwapi.search_expression import SE
+from pyfwapi.search.search_expression import SE
 from pyfwapi.util.alist import alist
-
-from .apitypes import Asset
-from .search_expression import SE
 
 FOTOWARE_QUERY_PLACEHOLDER = "{?q}"
 
@@ -36,7 +33,7 @@ class Tenant:
         Connect to an tenant (instance) of FotoWare. This is the core class to iterate
         archives and assets and to search for specific assets.
 
-        Pass in either a connection or the three other arguments.
+        Pass in either a connection or an endpoint with client credentials.
 
         Args:
             url: URL of the endpoint, e.g. `https://myorg.fotoware.cloud`
@@ -59,19 +56,21 @@ class Tenant:
         return InstanceInfo.model_validate_json(d.content)
 
     # MARK: Archives
-    async def iter_archives(self) -> t.AsyncGenerator[Archive, None]:
+    async def iter_archives(self) -> t.AsyncGenerator[Collection, None]:
         """Iterate over the (paginated) archives in this tenant."""
-        async for archive in self.api.paginated("/fotoweb/archives", type=Archive):
+        async for archive in self.api.paginated(
+            "/fotoweb/me/archives", type=Collection
+        ):
             yield archive
 
-    async def archive_by(self, *, id: int) -> Archive:
+    async def archive_by(self, *, id: int) -> Collection:
         """Get the archive with archive ID."""
         d = await self.api.GET(f"/fotoweb/archives/{id}")
-        return Archive.model_validate_json(d.content)
+        return Collection.model_validate_json(d.content)
 
     # MARK: Assets
     async def iter_assets(
-        self, *, in_archive: Archive
+        self, *, in_archive: Collection
     ) -> t.AsyncGenerator[Asset, None]:
         """Iterate over the (paginated) assets in this archive."""
         async for asset in self.api.paginated(in_archive.data, type=Asset):
@@ -83,15 +82,21 @@ class Tenant:
         return Asset.model_validate_json(d.content)
 
     async def match_assets(
-        self, *, query: SE, in_archives: list[Archive] | None = None
+        self, query: str | SE, *, in_archives: list[Collection] | None = None
     ) -> t.AsyncGenerator[Asset, None]:
+        """
+        Search archives with a query for certain assets.
+
+        The query should be a built SE (SearchExpression), but could also be a simple
+        string.
+        """
         archives = in_archives or await alist(self.iter_archives())
 
         for a in archives:
             search_base_url = a.searchURL
             if search_base_url is None:
-                FotowareLog.error(f"Archive '{a}' cannot be searched")
-                raise ArchiveNotSearchableError("Archive '{a}' has no searchURL")
+                FotowareLog.error(f"Collection '{a}' cannot be searched")
+                raise ArchiveNotSearchableError("Collection '{a}' has no searchURL")
 
             q = ";o=+?q=" + quote(str(query).strip())  # order by oldest modified
             query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
@@ -144,3 +149,17 @@ class Tenant:
         )
 
         return r.headers["Location"]
+
+
+class UnstableTenant(Tenant):
+    async def namespaces(self) -> t.AsyncGenerator[FieldNamespace, None]:
+        d = await self.api.GET("/fotoweb/api/config/metadata/namespaces")
+        for namespace in d.json():
+            yield namespace
+
+    async def known_fields(
+        self,
+    ) -> t.AsyncGenerator[KnownMetadataField, None]:
+        d = await self.api.GET("/fotoweb/api/config/metadata/fields/known")
+        for field in d.json():
+            yield field

@@ -2,6 +2,8 @@ import enum
 
 
 class Ranged(enum.StrEnum):
+    """Ranged predicates allow ranged values"""
+
     FileModification = "mt"
     IPTCCreationTime = "it"
     ReleasedTime = "rt"
@@ -12,6 +14,8 @@ class Ranged(enum.StrEnum):
 
 
 class StrSpecial(enum.StrEnum):
+    """Special predicates map to special file propeties"""
+
     FileName = "fn"
     DirectoryName = "dn"
     FullFilePath = "fp"

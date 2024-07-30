@@ -1,5 +1,6 @@
 import typing as t
 
+from pyfwapi.errors import SearchSyntaxError
 from pyfwapi.model.asset import (
     AssetTypeValues,
     ColorSpaceValues,
@@ -19,7 +20,6 @@ from pyfwapi.search.ast import (
     VALUE_TYPES,
     SearchExpressionAST,
 )
-from pyfwapi.search.errors import SearchSyntaxError
 from pyfwapi.search.predicates import Ranged, StrSpecial
 
 
@@ -52,13 +52,22 @@ class SE:
         self.data = ast
 
     def fts(self, value: str, /):
-        """Search across all metadata (full text search)"""
+        """
+        Search across all metadata (full text search).
+
+        This also searches for ``value`` in document running text, like in a PDF file.
+        """
 
         ast = VALUE(value)
         return SE(AND(self.data, ast) if self.data else ast)
 
     def empty(self, field: str | int, /):
-        """Search for empty values"""
+        """
+        Search for empty values.
+
+        Note that the index manager MUST index empty values for ``field``. In a SaaS
+        tenant, the index manager is accessible by customer support.
+        """
         ast = FIELD_EMPTY(FIELD(field))
         return SE(AND(self.data, ast) if self.data else ast)
 
@@ -67,22 +76,31 @@ class SE:
     @t.overload
     def eq(self, field: FIELD_TYPES, value: VALUE_TYPES, /): ...
     def eq(self, field: FIELD_TYPES | StrSpecial, value: VALUE_TYPES, /):
-        """Search for an exact field value"""
+        """Search for an exact field value."""
 
         ast = FIELD_EQ(FIELD(field), VALUE(value))
         return SE(AND(self.data, ast) if self.data else ast)
 
     def colorspace(self, value: ColorSpaceValues, /) -> t.Self:
+        """Filter to certain colorspaces."""
         return self.eq(StrSpecial.ColorSpace, value)
 
     def image_orientation(self, value: ImageOrientationValues, /) -> t.Self:
+        """
+        Filter for certain image orientations. Square images are simultaneously both
+        portrait and landscape.
+        """
         return self.eq(StrSpecial.ImageOrientation, value)
 
     def assettype(self, value: AssetTypeValues, /) -> t.Self:
+        """Filter for asset type."""
         return self.eq(StrSpecial.AssetType, value)
 
     def range(self, field: FIELD_TYPES | Ranged, min: VALUE_TYPES, max: VALUE_TYPES, /):
-        """Search for field values in range"""
+        """
+        Search for field values in a date or numeric range. Note that the server always
+        processes floats as if they were `floor()`ed to integers.
+        """
         ast = FIELD_EQ(FIELD(field), VAL_RANGE(VALUE(min), VALUE(max)))
         return SE(AND(self.data, ast) if self.data else ast)
 
@@ -98,15 +116,19 @@ class SE:
         raise SearchSyntaxError("A ranged value must have either a min, a max or both.")
 
     def modification(self, min: DATE_TYPES | None, max: DATE_TYPES | None, /):
+        """Filter for file modification datetime"""
         return self._minmax(Ranged.FileModification, min, max)
 
     def filesize(self, min: int | None, max: int | None, /):
+        """Filter for file size"""
         return self._minmax(Ranged.FileSize, min, max)
 
     def pixel_height(self, min: int | None, max: int | None, /):
+        """Filter for image pixel height"""
         return self._minmax(Ranged.PixelHeight, min, max)
 
     def pixel_width(self, min: int | None, max: int | None, /):
+        """Filter for image pixel width"""
         return self._minmax(Ranged.PixelWidth, min, max)
 
     def NOT(self, other: t.Self | None = None, /):
@@ -126,6 +148,7 @@ class SE:
         raise SearchSyntaxError("Uninitialized SE in a NOT expression")
 
     def __neg__(self):
+        """Negate the built SE."""
         return self.NOT()
 
     def OR(self, other: t.Self, /):
@@ -134,6 +157,7 @@ class SE:
         return SE(OR(self.data, other.data))
 
     def __or__(self, other):
+        """Combine two `SE`s with OR"""
         if not isinstance(other, self.__class__):
             raise NotImplementedError()
         return self.OR(other)
@@ -144,6 +168,7 @@ class SE:
         return SE(AND(self.data, other.data))
 
     def __and__(self, other):
+        """Combine two `SE`s with AND"""
         if not isinstance(other, self.__class__):
             raise NotImplementedError()
         return self.AND(other)
