@@ -16,8 +16,36 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install poetry
+        run: pipx install poetry
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: "3.x"
+          cache: "poetry"
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Build package
+        run: poetry build
+
+      - name: Save dist folder
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist/
+          name: python-package-build
+          if-no-files-found: error
+
   pypi-publish:
     runs-on: ubuntu-latest
+    needs: build
 
     environment:
       name: pypi
@@ -28,6 +56,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Get build artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          name: python-package-build
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@fb9fc6a4e67ca27a7a76b17bbf90be83c2d3c716
