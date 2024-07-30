@@ -5,13 +5,13 @@ from pydantic import Field
 from pyfwapi.model.basemodel import APIResponse
 
 
-class BackgroundRequestResp(APIResponse):
+class MoveResponse(APIResponse):
     maxInterval: int
     location: str
     status: str
 
 
-class BackgroundTaskJobInfoResult(APIResponse):
+class TaskStatusJobResult(APIResponse):
     href: str
     done: bool
     result_href: str = Field(alias="result-href")
@@ -22,13 +22,13 @@ class BackgroundTaskJobInfoResult(APIResponse):
     result_filename: str = Field(alias="result-filename")
 
 
-class BackgroundTaskJobInfo(APIResponse):
+class TaskStatusJob(APIResponse):
     status: t.Literal["pending", "inProgress", "done", "failed"]
     updates: int
-    result: list[BackgroundTaskJobInfoResult]
+    result: list[TaskStatusJobResult]
 
 
-class BackgroundTaskTaskInfo(APIResponse):
+class TaskStatusTask(APIResponse):
     status: t.Literal["pending", "inProgress", "done", "failed"]
     type: str
     created: str
@@ -36,6 +36,6 @@ class BackgroundTaskTaskInfo(APIResponse):
     id: str
 
 
-class BackgroundTaskResp(APIResponse):
-    job: BackgroundTaskJobInfo
-    task: BackgroundTaskTaskInfo
+class TaskStatus(APIResponse):
+    job: TaskStatusJob
+    task: TaskStatusTask

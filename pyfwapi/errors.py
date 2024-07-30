@@ -3,5 +3,17 @@ class APIError(Exception):
         super().__init__(message)
 
 
-class ArchiveNotSearchableError(APIError):
+class CollectionNotSearchable(APIError):
+    pass
+
+
+class UploadException(APIError):
+    pass
+
+
+class CollectionNotMovableTo(APIError):
+    pass
+
+
+class SearchSyntaxError(ValueError):
     pass

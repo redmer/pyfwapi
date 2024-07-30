@@ -2,7 +2,7 @@ import typing as t
 from urllib.parse import quote
 
 from pyfwapi.apiconnection import APIConnection
-from pyfwapi.errors import ArchiveNotSearchableError
+from pyfwapi.errors import CollectionNotSearchable
 from pyfwapi.log import FotowareLog
 from pyfwapi.model.asset import Asset
 from pyfwapi.model.collection import Collection
@@ -96,7 +96,7 @@ class Tenant:
             search_base_url = a.searchURL
             if search_base_url is None:
                 FotowareLog.error(f"Collection '{a}' cannot be searched")
-                raise ArchiveNotSearchableError("Collection '{a}' has no searchURL")
+                raise CollectionNotSearchable("Collection '{a}' has no searchURL")
 
             q = ";o=+?q=" + quote(str(query).strip())  # order by oldest modified
             query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
