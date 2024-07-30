@@ -5,13 +5,11 @@ from authlib.integrations.httpx_client import AsyncOAuth2Client
 from httpx import Response
 
 from pyfwapi.errors import APIError
-from pyfwapi.log import FotowareLog
+from pyfwapi.log import pyfwapiLog
 from pyfwapi.model.basemodel import APIResponse
 
 
 class APIConnection:
-    """A reusable connection to the FotoWare API"""
-
     # For implementers, this class only concerns itself with the OAuth2 token,
     # and proxies such GET, POST, PATCH requests. It doesn't know about specific
     # entity types, like Asset or Rendition.
@@ -23,7 +21,7 @@ class APIConnection:
         Connect to an instance of the FotoWare API.
 
         Args:
-            endpoint_url: URL of the endpoint, e.g. `https://myorg.fotoware.cloud`
+            endpoint_url: URL of the endpoint, e.g. `https://myorg.example.org`
             client_id: the registered non-interactive application's `client_id`
             client_secret: the application's secret
         """
@@ -58,7 +56,7 @@ class APIConnection:
 
     async def GET(self, path: str, /, *, headers: t.Mapping[str, str] = {}) -> Response:
         """
-        Perform GET request on the FotoWare API and return JSON.
+        Perform GET request on the API and return JSON.
 
         Raises:
             httpx.HTTPStatusError: API response if the status code is not 200.
@@ -76,7 +74,7 @@ class APIConnection:
         self, path: str, /, *, headers: t.Mapping[str, str] = {}, data: t.Any = {}
     ) -> Response:
         """
-        Perform PATCH request on the FotoWare API and return JSON.
+        Perform PATCH request on the API and return JSON.
 
         Args:
             path: the resource endpoint, starting with /
@@ -104,7 +102,7 @@ class APIConnection:
         self, path: str, /, *, headers: t.Mapping[str, str] = {}, data: t.Any = {}
     ) -> Response:
         """
-        Perform POST request on the FotoWare API and return JSON.
+        Perform POST request on the API and return JSON.
 
         Args:
             path: the resource endpoint, starting with /
@@ -188,6 +186,6 @@ class APIConnection:
             retries -= 1
             await asyncio.sleep(delay)
 
-        FotowareLog.error(f"Download '{path}' failed after {retries}")
+        pyfwapiLog.error(f"Download '{path}' failed after {retries}")
         resp.raise_for_status()
         raise APIError(f"Download '{path}' failed after {retries}")

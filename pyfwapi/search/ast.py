@@ -1,3 +1,10 @@
+"""
+This module provides a dataclass that can represent an Abstract Syntax Tree for FotoWare
+Search Expressions.
+
+Consider using SE (Seach Expression) for an easier, fluent-style API.
+"""
+
 import textwrap
 import typing as t
 from dataclasses import dataclass
@@ -5,11 +12,9 @@ from datetime import date, datetime
 
 
 @dataclass
-class SearchExpressionAST:
+class SEASTNode:
     """
-    An Abstract Syntax Tree for FotoWare Search Expressions.
-
-    Consider using SE (Seach Expression) for an easier, fluent-style API.
+    An Abstract Syntax Tree node for FotoWare Search Expressions.
 
     Each AST node is either a terminal value with a single argument (VALUE, FIELD) or it
     its arguments are instances of the AST that it structures.
@@ -49,47 +54,55 @@ type FIELD_TYPES = str | int
 
 # MARK: Terminals
 def VALUE(value: VALUE_TYPES):
+    """Create a field value, escaped where necessary"""
     if isinstance(value, str) and " " in value:
         value = f'"{value}"'
     if isinstance(value, datetime):
         value = value.isoformat(sep="T", timespec="minutes")
     if isinstance(value, date):
         value = value.isoformat()
-    return SearchExpressionAST(type="VALUE", args=(str(value), None))
+    return SEASTNode(type="VALUE", args=(str(value), None))
 
 
 def FIELD(fieldname: FIELD_TYPES):
-    return SearchExpressionAST(type="FIELD", args=(str(fieldname), None))
+    """Create a field"""
+    return SEASTNode(type="FIELD", args=(str(fieldname), None))
 
 
 # MARK: Non-terminals
-def VAL_RANGE(start_value: SearchExpressionAST, end_value: SearchExpressionAST):
-    return SearchExpressionAST(type="VAL_RANGE", args=(start_value, end_value))
+def VAL_RANGE(start_value: SEASTNode, end_value: SEASTNode):
+    """Create a ranged field value"""
+    return SEASTNode(type="VAL_RANGE", args=(start_value, end_value))
 
 
-def FIELD_EMPTY(field: SearchExpressionAST):
-    return SearchExpressionAST(type="FIELD_EQ", args=(field, VALUE("")))
+def FIELD_EMPTY(field: SEASTNode):
+    """Create an empty field expression"""
+    return SEASTNode(type="FIELD_EQ", args=(field, VALUE("")))
 
 
-def FIELD_EQ(field: SearchExpressionAST, value: SearchExpressionAST):
-    if not isinstance(value, SearchExpressionAST) or field.type != "FIELD":
+def FIELD_EQ(field: SEASTNode, value: SEASTNode):
+    """Create an field value expression"""
+    if not isinstance(value, SEASTNode) or field.type != "FIELD":
         raise NotImplementedError()
-    return SearchExpressionAST(type="FIELD_EQ", args=(field, value))
+    return SEASTNode(type="FIELD_EQ", args=(field, value))
 
 
-def NOT(lhs: SearchExpressionAST):
-    if not isinstance(lhs, SearchExpressionAST):
+def NOT(lhs: SEASTNode):
+    """Negate a search expression"""
+    if not isinstance(lhs, SEASTNode):
         raise NotImplementedError()
-    return SearchExpressionAST(type="NOT", args=(lhs, None))
+    return SEASTNode(type="NOT", args=(lhs, None))
 
 
-def OR(lhs: SearchExpressionAST, rhs: SearchExpressionAST):
-    if not isinstance(rhs, SearchExpressionAST):
+def OR(lhs: SEASTNode, rhs: SEASTNode):
+    """Combine two search expressions with OR"""
+    if not isinstance(rhs, SEASTNode):
         raise NotImplementedError()
-    return SearchExpressionAST(type="OR", args=(lhs, rhs))
+    return SEASTNode(type="OR", args=(lhs, rhs))
 
 
-def AND(lhs: SearchExpressionAST, rhs: SearchExpressionAST):
-    if not isinstance(rhs, SearchExpressionAST):
+def AND(lhs: SEASTNode, rhs: SEASTNode):
+    """Combine two search expressions with AND"""
+    if not isinstance(rhs, SEASTNode):
         raise NotImplementedError()
-    return SearchExpressionAST(type="AND", args=(lhs, rhs))
+    return SEASTNode(type="AND", args=(lhs, rhs))

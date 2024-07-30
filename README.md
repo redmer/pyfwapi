@@ -7,14 +7,14 @@ Work with the Fotoware API in Python.
 ```py
 >>> from pyfwapi import Tenant
 ... fw = Tenant("https://tenant.example.org", client_id="abd123", client_secret="sekret")
-... 
+...
 ... async for archive in fw.archives():
 ...     print(a.name)
 Marketing
 Technical docs
 ```
 
-## Design
+## Design considerations
 
 The API responses are parsed using Pydantic.
 It's a hefty dependency, but -- for now -- allows easy parsing of the JSON responses.

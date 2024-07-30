@@ -6,12 +6,12 @@ from pyfwapi.model.asset import Asset, MetadataFieldType
 from pyfwapi.model.collection import Collection
 
 from .stateful import (
+    BaseChangeManager,
     ChangeTask,
     MetadataAttributesPatch,
     MetadataPatch,
     MetadataRequest,
     MoveRequest,
-    StatefulChangeManager,
     UploadRequest,
     ValueMetadataField,
 )
@@ -25,10 +25,10 @@ class ChangeManager:
 
     def __init__(self, connection: APIConnection) -> None:
         self.api = connection
-        self.state = StatefulChangeManager()
+        self.state = BaseChangeManager()
 
     async def commit(self):
-        """Commit the changes to the FotoWare API. This may take a while."""
+        """Commit the changes to the backend API. This may take a while."""
         await self.state.commit(conn=self.api)
 
     # Metadata change
@@ -70,6 +70,13 @@ class ChangeManager:
         """
         Upload a new asset, from a local file of filestream.
 
+        Args:
+            file: An opened file-like stream.
+            destination: the archive to upload to.
+            filename: the file's name, taken from file.name if None.
+            fields: arbitrairy custom metadata.
+            attributes: change the file's modification datetime.
+
         Raises:
             MoveTargetError: if the destination Collection is not a valid destination,
                 e.g. because it is a search archive.
@@ -92,3 +99,6 @@ class ChangeManager:
                 )
             )
         )
+
+
+__all__ = ["ChangeManager"]

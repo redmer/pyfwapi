@@ -18,7 +18,7 @@ from pyfwapi.search.ast import (
     VAL_RANGE,
     VALUE,
     VALUE_TYPES,
-    SearchExpressionAST,
+    SEASTNode,
 )
 from pyfwapi.search.predicates import Ranged, StrSpecial
 
@@ -32,23 +32,20 @@ class SE:
     These are generally combined using AND. Use `|` `OR()` and `-` `NOT()` to combine
     terms in other ways (for explicitely query building, you may also use `&` `AND()`).
 
-    >>> SE()
-            .range("dt", min=today() - timedelta(days=2, hours=4), max=today())
-            | SE().eq("fn", "*.png")
-            & SE().fts("example").fts("pride")
+    >>> SE().eq("fn", "*.png") | SE().range("ph", min=500, max=1024) & SE().fts("example").fts("pride")
 
     Note that for `empty()`, the index manager MUST index empty values for that field.
     Otherwise, results may be incomplete.
 
     Some fields have specialized matching functions, like `assettype`, `colorspace`,
     `image_orientation`, `modification`, `filesize`, `pixel_height`, `pixel_width`.
-
-    Reference: <https://learn.fotoware.com/FotoWare_SaaS/Navigating_and_searching_to_find_your_assets/Searching_in_FotoWare/001_Searching_for_assets/FotoWare_Search_Expressions_Reference>
     """
 
-    data: SearchExpressionAST | None
+    # Reference: <https://learn.fotoware.com/FotoWare_SaaS/Navigating_and_searching_to_find_your_assets/Searching_in_FotoWare/001_Searching_for_assets/FotoWare_Search_Expressions_Reference>
 
-    def __init__(self, ast: SearchExpressionAST | None = None) -> None:
+    data: SEASTNode | None
+
+    def __init__(self, ast: SEASTNode | None = None) -> None:
         self.data = ast
 
     def fts(self, value: str, /):

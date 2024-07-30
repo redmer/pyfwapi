@@ -9,7 +9,7 @@ from httpx import HTTPStatusError
 
 from pyfwapi.apiconnection import APIConnection
 from pyfwapi.errors import UploadException
-from pyfwapi.log import FotowareLog
+from pyfwapi.log import pyfwapiLog
 from pyfwapi.model.asset import MetadataFieldType
 from pyfwapi.model.background_tasks import MoveResponse, TaskStatus
 from pyfwapi.model.upload_request import BatchUploadInfo, BatchUploadStatus
@@ -65,23 +65,30 @@ class ChangeTask:
         return f"Change(type={type(self.change)}, status={self.status} [id={self.id}])"
 
 
-@dataclass
-class BackgroundedTask:
-    task_id: bytes
-    location: str
+class BaseChangeManager:
+    """
+    The class that keeps track of to-be uploaded tasks, executes uploads and web
+    requests, and can keep track of background tasks.
 
-
-class StatefulChangeManager:
-    """The stateful class that keeps track of to-be uploaded tasks"""
+    Consider using ChangeManager for a higher-level API.
+    """
 
     def __init__(self) -> None:
         self.tasks: dict[bytes, ChangeTask] = dict()
-        self.backgrounded_tasks: dict[bytes, BackgroundedTask] = dict()
+        self.task_statuslocation: dict[bytes, str] = dict()
 
     def add_task(self, task: ChangeTask):
         self.tasks[task.id] = task
 
+    async def commit(self, *, conn: APIConnection, await_done: bool = True):
+        """Commit changes ready to commit."""
+        for task in self.tasks.values():
+            if task.status != "uncommitted":
+                continue
+            await self.commit_uncommitted(task, conn=conn)
+
     async def commit_uncommitted(self, ch: ChangeTask, *, conn: APIConnection):
+        """Commit a single uncommitted ChangeTask."""
         if isinstance(ch.change, MetadataRequest):
             success = await self.patch_metadata(ch.change, conn=conn)
             if success:
@@ -89,51 +96,51 @@ class StatefulChangeManager:
                 return
             ch.status = "failed"
 
-        if isinstance(ch.change, MoveRequest):
+        elif isinstance(ch.change, MoveRequest):
             task = await self.move_asset(ch.change, conn=conn)
             ch.status = "submitted"
-            self.backgrounded_tasks[ch.id] = BackgroundedTask(ch.id, task.location)
+            self.task_statuslocation[ch.id] = task.location
 
-        if isinstance(ch.change, UploadRequest):
+        elif isinstance(ch.change, UploadRequest):
             task = await self.upload_asset(ch.change, conn=conn)
             ch.status = "submitted"
-            self.backgrounded_tasks[ch.id] = BackgroundedTask(
-                ch.id, f"/fotoweb/api/uploads/{task.upload_id}/status"
+            self.task_statuslocation[ch.id] = (
+                f"/fotoweb/api/uploads/{task.upload_id}/status"
             )
 
-    async def commit(self, *, conn: APIConnection, await_done: bool = True):
-        """Commit changes readied in the state."""
-        for task in self.tasks.values():
-            if task.status != "uncommitted":
-                continue
-            await self.commit_uncommitted(task, conn=conn)
-
     async def check_submitted(self, *, conn: APIConnection):
+        """Check the processing status of backgrounded tasks, like moves and uploads."""
         for task in self.tasks.values():
             if task.status != "submitted":
                 continue
-            bgtask = self.backgrounded_tasks.get(task.id)
-            if bgtask is None:
+            location = self.task_statuslocation.get(task.id)
+            if location is None:
                 continue
 
             if isinstance(task.change, MoveRequest):
-                r = await conn.GET(bgtask.location)
+                r = await conn.GET(location)
                 info = TaskStatus.model_validate_json(r.content)
                 match info.task.status:
-                    case "done" | "failed":
-                        task.status = info.task.status
+                    case "done":
+                        task.status = "done"
+                    case "failed":
+                        task.status = "failed"
+                        pyfwapiLog.warn(f"Move failed (fn:{task.change.asset_hrefs})")
 
             if isinstance(task.change, UploadRequest):
-                r = await conn.GET(bgtask.location)
+                r = await conn.GET(location)
                 info = BatchUploadStatus.model_validate_json(r.content)
                 match info.status:
-                    case "done" | "failed":
-                        task.status = info.status
+                    case "done":
+                        task.status = "done"
+                    case "failed":
+                        task.status = "failed"
+                        pyfwapiLog.warn(f"Upload failed (fn:{task.change.filename})")
 
     async def patch_metadata(
         self, item: MetadataRequest, *, conn: APIConnection
     ) -> bool:
-        """Commit a single AssetMetadataChange. Returns False upon error."""
+        """Handle a single AssetMetadataChange. Returns False upon error."""
 
         try:
             await conn.PATCH(
@@ -142,7 +149,7 @@ class StatefulChangeManager:
                 data={"metadata": dataclasses.asdict(item)["new_metadata"]},
             )
         except HTTPStatusError as err:
-            FotowareLog.warning(f"{item} failed, because:", err)
+            pyfwapiLog.warning(f"{item} failed, because:", err)
             return False
         else:
             return True
@@ -150,6 +157,7 @@ class StatefulChangeManager:
     async def move_asset(
         self, item: MoveRequest, *, conn: APIConnection
     ) -> MoveResponse:
+        """Handle a single MoveRequest."""
         assets = list(({"href": href} for href in item.asset_hrefs))
         d = await conn.POST(
             "/fotoweb/me/background-tasks/",
@@ -165,6 +173,7 @@ class StatefulChangeManager:
         return MoveResponse.model_validate_json(d.content)
 
     async def upload_asset(self, item: UploadRequest, *, conn: APIConnection):
+        """Handle a single UploadRequest"""
         # submit upload request...
         r = await conn.POST(
             "/fotoweb/api/uploads",

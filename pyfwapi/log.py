@@ -1,3 +1,3 @@
 import logging
 
-FotowareLog = logging.getLogger("fotoware")
+pyfwapiLog = logging.getLogger("pyfwapi")
