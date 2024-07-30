@@ -34,6 +34,6 @@ class Services(APIResponse):
     rendition_request: str | None
 
 
-class InstanceInfo(APIResponse):
+class FullAPIDescriptor(APIResponse):
     services: Services
     searchURL: str

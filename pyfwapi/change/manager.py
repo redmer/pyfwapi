@@ -74,7 +74,7 @@ class ChangeManager:
             MoveTargetError: if the destination Collection is not a valid destination,
                 e.g. because it is a search archive.
         """
-        if not destination.canMoveTo:
+        if not destination.canUploadTo:
             raise CollectionNotMovableTo(destination.name)
 
         fn = filename or file.name

@@ -6,7 +6,11 @@ from pyfwapi.errors import CollectionNotSearchable
 from pyfwapi.log import FotowareLog
 from pyfwapi.model.asset import Asset
 from pyfwapi.model.collection import Collection
-from pyfwapi.model.instance_info import FieldNamespace, InstanceInfo, KnownMetadataField
+from pyfwapi.model.instance_info import (
+    FieldNamespace,
+    FullAPIDescriptor,
+    KnownMetadataField,
+)
 from pyfwapi.model.preview_rendition import AssetPreview, AssetRendition
 from pyfwapi.search.search_expression import SE
 from pyfwapi.util.alist import alist
@@ -51,9 +55,9 @@ class Tenant:
         else:
             self.api = connection
 
-    async def instance_info(self) -> InstanceInfo:
+    async def instance_info(self) -> FullAPIDescriptor:
         d = await self.api.GET("/fotoweb/me")
-        return InstanceInfo.model_validate_json(d.content)
+        return FullAPIDescriptor.model_validate_json(d.content)
 
     # MARK: Archives
     async def iter_archives(self) -> t.AsyncGenerator[Collection, None]:

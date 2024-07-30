@@ -20,6 +20,7 @@ class Collection(APIResponse):
     isSearchable: bool
     permissions: list[str]
     canMoveTo: bool
+    canUploadTo: bool
 
     assetCount: int = -1
     # ancestors: list["Collection"] | None = None
