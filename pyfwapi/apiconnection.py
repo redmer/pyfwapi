@@ -1,5 +1,6 @@
 import asyncio
 import typing as t
+import urllib.parse
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from httpx import Response
@@ -62,6 +63,7 @@ class APIConnection:
             httpx.HTTPStatusError: API response if the status code is not 200.
         """
         await self.ensure_token()
+        pyfwapiLog.debug(f"GET {urllib.parse.unquote(path)}")
         r = await self.client.get(
             self.HOST + path,
             headers={"Accept": "application/json", **headers},
@@ -85,6 +87,7 @@ class APIConnection:
             httpx.HTTPStatusError: API response if the status code is not 2xx.
         """
         await self.ensure_token()
+        pyfwapiLog.debug(f"PATCH {urllib.parse.unquote(path)}")
         r = await self.client.patch(
             self.HOST + path,
             headers={
@@ -113,6 +116,7 @@ class APIConnection:
             httpx.HTTPStatusError: if API response is not 2xx
         """
         await self.ensure_token()
+        pyfwapiLog.debug(f"POST {urllib.parse.unquote(path)}")
         r = await self.client.post(
             self.HOST + path,
             headers={"Accept": "application/json", **headers},
@@ -135,15 +139,15 @@ class APIConnection:
         """
         page_url: str | None = path
 
-        while page_url is not None:
+        while page_url is not None or page_url != "":
             full_results = await self.GET(page_url, headers=headers)
             full_results = full_results.json()
 
             # Some first pages are different
             page: t.Mapping[str, t.Any] = full_results.get("assets", full_results)
-            data = page.get("data", None)
+            data = page.get("data", [])
 
-            if data is None:
+            if len(data) == 0:
                 break
             for d in data:
                 yield type.model_validate(d)
