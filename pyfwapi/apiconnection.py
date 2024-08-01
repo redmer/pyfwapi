@@ -2,6 +2,7 @@ import asyncio
 import typing as t
 import urllib.parse
 
+import aiolimiter
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from httpx import Response
 
@@ -29,6 +30,7 @@ class APIConnection:
 
         self.HOST = endpoint_url.removesuffix("/")
         self.TOKEN_ENDPOINT = f"{self.HOST}/fotoweb/oauth2/token"
+        self.rate_limit = aiolimiter.AsyncLimiter(1, 0.8)
 
         self.client = AsyncOAuth2Client(
             client_id=client_id,
@@ -64,13 +66,14 @@ class APIConnection:
         """
         await self.ensure_token()
         pyfwapiLog.debug(f"GET {urllib.parse.unquote(path)}")
-        r = await self.client.get(
-            self.HOST + path,
-            headers={"Accept": "application/json", **headers},
-            follow_redirects=True,
-        )
-        r.raise_for_status()
-        return r
+        async with self.rate_limit:
+            r = await self.client.get(
+                self.HOST + path,
+                headers={"Accept": "application/json", **headers},
+                follow_redirects=True,
+            )
+            r.raise_for_status()
+            return r
 
     async def PATCH(
         self, path: str, /, *, headers: t.Mapping[str, str] = {}, data: t.Any = {}
@@ -88,18 +91,19 @@ class APIConnection:
         """
         await self.ensure_token()
         pyfwapiLog.debug(f"PATCH {urllib.parse.unquote(path)}")
-        r = await self.client.patch(
-            self.HOST + path,
-            headers={
-                "Content-Type": "application/vnd.fotoware.assetupdate+json",
-                "Accept": "application/vnd.fotoware.asset+json",
-                **headers,
-            },
-            follow_redirects=True,
-            json=data,
-        )
-        r.raise_for_status()
-        return r
+        async with self.rate_limit:
+            r = await self.client.patch(
+                self.HOST + path,
+                headers={
+                    "Content-Type": "application/vnd.fotoware.assetupdate+json",
+                    "Accept": "application/vnd.fotoware.asset+json",
+                    **headers,
+                },
+                follow_redirects=True,
+                json=data,
+            )
+            r.raise_for_status()
+            return r
 
     async def POST(
         self, path: str, /, *, headers: t.Mapping[str, str] = {}, data: t.Any = {}
@@ -117,14 +121,15 @@ class APIConnection:
         """
         await self.ensure_token()
         pyfwapiLog.debug(f"POST {urllib.parse.unquote(path)}")
-        r = await self.client.post(
-            self.HOST + path,
-            headers={"Accept": "application/json", **headers},
-            json=data,
-            follow_redirects=False,
-        )
-        r.raise_for_status()
-        return r
+        async with self.rate_limit:
+            r = await self.client.post(
+                self.HOST + path,
+                headers={"Accept": "application/json", **headers},
+                json=data,
+                follow_redirects=False,
+            )
+            r.raise_for_status()
+            return r
 
     async def paginated[T: APIResponse](
         self, path: str, /, *, type: type[T], headers: t.Mapping[str, str] = {}
