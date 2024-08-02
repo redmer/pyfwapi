@@ -86,13 +86,15 @@ class Tenant:
         return Asset.model_validate_json(d.content)
 
     async def match_assets(
-        self, query: str | SE, *, in_archives: list[Collection] | None = None
+        self, query: str | SE, *, in_archives: t.Iterable[Collection] | None = None
     ) -> t.AsyncGenerator[Asset, None]:
         """
         Search archives with a query for certain assets.
 
-        The query should be a built SE (SearchExpression), but could also be a simple
-        string.
+        Args:
+            query: This should be a built SE (SearchExpression), but can also be a
+                simple correctly formed string.
+            in_archives: The archives (or other collections) to search in.
         """
         archives = in_archives or await alist(self.iter_archives())
 

@@ -11,7 +11,7 @@ from pyfwapi.apiconnection import APIConnection
 from pyfwapi.errors import UploadException
 from pyfwapi.log import pyfwapiLog
 from pyfwapi.model.asset import MetadataFieldType
-from pyfwapi.model.background_tasks import MoveResponse, TaskStatus
+from pyfwapi.model.background_tasks import BackgroundTaskResponse, TaskStatus
 from pyfwapi.model.upload_request import BatchUploadInfo, BatchUploadStatus
 
 
@@ -104,9 +104,7 @@ class BaseChangeManager:
         elif isinstance(ch.change, UploadRequest):
             task = await self.upload_asset(ch.change, conn=conn)
             ch.status = "submitted"
-            self.task_statuslocation[ch.id] = (
-                f"/fotoweb/api/uploads/{task.upload_id}/status"
-            )
+            self.task_statuslocation[ch.id] = f"/fotoweb/api/uploads/{task.id}/status"
 
     async def check_submitted(self, *, conn: APIConnection):
         """Check the processing status of backgrounded tasks, like moves and uploads."""
@@ -156,7 +154,7 @@ class BaseChangeManager:
 
     async def move_asset(
         self, item: MoveRequest, *, conn: APIConnection
-    ) -> MoveResponse:
+    ) -> BackgroundTaskResponse:
         """Handle a single MoveRequest."""
         assets = list(({"href": href} for href in item.asset_hrefs))
         d = await conn.POST(
@@ -170,7 +168,7 @@ class BaseChangeManager:
             },
         )
 
-        return MoveResponse.model_validate_json(d.content)
+        return BackgroundTaskResponse.model_validate_json(d.content)
 
     async def upload_asset(self, item: UploadRequest, *, conn: APIConnection):
         """Handle a single UploadRequest"""
@@ -223,7 +221,7 @@ class BaseChangeManager:
             part.set_content_disposition("form-data", name="chunk", filename="chunk")
 
             resp = await conn.POST(
-                f"/fotoweb/api/uploads/{upload_info.upload_id}/chunks/{i}",
+                f"/fotoweb/api/uploads/{upload_info.id}/chunks/{i}",
                 data=mp,
                 headers=mp.headers,
             )

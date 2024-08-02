@@ -4,7 +4,7 @@ from pyfwapi.model.basemodel import APIResponse
 
 
 class BatchUploadInfo(APIResponse):
-    upload_id: str
+    id: str
     chunkSize: int
     numChunks: int
 

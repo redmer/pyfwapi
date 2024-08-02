@@ -5,7 +5,34 @@ from pydantic import Field
 from pyfwapi.model.basemodel import APIResponse
 
 
-class MoveResponse(APIResponse):
+class HasHref(t.TypedDict):
+    href: str
+
+
+class _FieldValue(t.TypedDict):
+    field: int
+    value: str
+
+
+MetadataEditRequest = t.TypedDict(
+    "MetadataEditRequest",
+    {
+        "assets": list[HasHref],
+        "job-metadata": list[_FieldValue],
+    },
+)
+
+
+MoveRequest = t.TypedDict(
+    "MoveRequest",
+    {
+        "assets": list[HasHref],
+        "job-destination": str,
+    },
+)
+
+
+class BackgroundTaskResponse(APIResponse):
     maxInterval: int
     location: str
     status: str
