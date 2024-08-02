@@ -151,7 +151,7 @@ class Tenant:
                 "Content-Type": "application/vnd.fotoware.rendition-request+json",
                 "Accept": "application/vnd.fotoware.rendition-response+json",
             },
-            data={"href": rendition.href},
+            json={"href": rendition.href},
         )
 
         return r.headers["Location"]

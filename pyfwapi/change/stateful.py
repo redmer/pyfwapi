@@ -144,7 +144,7 @@ class BaseChangeManager:
             await conn.PATCH(
                 item.asset_href,
                 headers={"Content-Type": "application/vnd.fotoware.assetupdate+json"},
-                data={"metadata": dataclasses.asdict(item)["new_metadata"]},
+                json={"metadata": dataclasses.asdict(item)["new_metadata"]},
             )
         except HTTPStatusError as err:
             pyfwapiLog.warning(f"{item} failed, because:", err)
@@ -162,7 +162,7 @@ class BaseChangeManager:
             headers={
                 "Content-Type": "application/vnd.fotoware.move-request+json",
             },
-            data={
+            json={
                 "assets": assets,
                 "job-destination": item.destination,
             },
@@ -176,7 +176,7 @@ class BaseChangeManager:
         r = await conn.POST(
             "/fotoweb/api/uploads",
             headers={"Content-Type": "application/json"},
-            data={
+            json={
                 "destination": item.destination,
                 "filename": item.filename,
                 "hasXmp": False,
@@ -222,7 +222,7 @@ class BaseChangeManager:
 
             resp = await conn.POST(
                 f"/fotoweb/api/uploads/{upload_info.id}/chunks/{i}",
-                data=mp,
+                json=mp,
                 headers=mp.headers,
             )
 

@@ -57,7 +57,9 @@ class APIConnection:
         except Exception:
             pass
 
-    async def GET(self, path: str, /, *, headers: t.Mapping[str, str] = {}) -> Response:
+    async def GET(
+        self, path: str, /, *, headers: t.Mapping[str, str] = {}, **kwargs
+    ) -> Response:
         """
         Perform GET request on the API and return JSON.
 
@@ -71,12 +73,19 @@ class APIConnection:
                 self.HOST + path,
                 headers={"Accept": "application/json", **headers},
                 follow_redirects=True,
+                **kwargs,
             )
             r.raise_for_status()
             return r
 
     async def PATCH(
-        self, path: str, /, *, headers: t.Mapping[str, str] = {}, data: t.Any = {}
+        self,
+        path: str,
+        /,
+        *,
+        headers: t.Mapping[str, str] = {},
+        json: t.Any = {},
+        **kwargs,
     ) -> Response:
         """
         Perform PATCH request on the API and return JSON.
@@ -100,13 +109,20 @@ class APIConnection:
                     **headers,
                 },
                 follow_redirects=True,
-                json=data,
+                json=json,
+                **kwargs,
             )
             r.raise_for_status()
             return r
 
     async def POST(
-        self, path: str, /, *, headers: t.Mapping[str, str] = {}, data: t.Any = {}
+        self,
+        path: str,
+        /,
+        *,
+        headers: t.Mapping[str, str] = {},
+        json: t.Any = {},
+        **kwargs,
     ) -> Response:
         """
         Perform POST request on the API and return JSON.
@@ -125,8 +141,9 @@ class APIConnection:
             r = await self.client.post(
                 self.HOST + path,
                 headers={"Accept": "application/json", **headers},
-                json=data,
+                json=json,
                 follow_redirects=False,
+                **kwargs,
             )
             r.raise_for_status()
             return r
