@@ -158,7 +158,10 @@ class Tenant:
 
 
 class UnstableTenant(Tenant):
+    """This subclass of Tenant also provides access to undocumented APIs."""
+
     async def namespaces(self) -> t.AsyncGenerator[FieldNamespace, None]:
+        """Registered metadata namespaces."""
         d = await self.api.GET("/fotoweb/api/config/metadata/namespaces")
         for namespace in d.json():
             yield namespace
@@ -166,6 +169,7 @@ class UnstableTenant(Tenant):
     async def known_fields(
         self,
     ) -> t.AsyncGenerator[KnownMetadataField, None]:
+        """Registered metadata fields."""
         d = await self.api.GET("/fotoweb/api/config/metadata/fields/known")
         for field in d.json():
             yield field

@@ -3,8 +3,6 @@ import typing as t
 from dataclasses import dataclass, field
 from uuid import uuid4
 
-import aiohttp
-from aiohttp import BytesPayload
 from httpx import HTTPStatusError
 
 from pyfwapi.apiconnection import APIConnection
@@ -210,21 +208,15 @@ class BaseChangeManager:
         chunk_size = min([upload_info.chunkSize, item.filesize])
         chunk_end = chunk_offset + chunk_size
 
-        with aiohttp.MultipartWriter("form-data") as mp:
-            bytes_part = item.contents[chunk_offset:chunk_end]
-            part = mp.append_payload(
-                BytesPayload(
-                    bytes_part,
-                    content_type="application/octet-stream",
-                )
-            )
-            part.set_content_disposition("form-data", name="chunk", filename="chunk")
+        bytes_part = item.contents[chunk_offset:chunk_end]
 
-            resp = await conn.POST(
-                f"/fotoweb/api/uploads/{upload_info.id}/chunks/{i}",
-                json=mp,
-                headers=mp.headers,
-            )
+        resp = await conn.POST(
+            f"/fotoweb/api/uploads/{upload_info.id}/chunks/{i}",
+            headers=mp.headers,
+            files={
+                "chunk": ("chunk", bytes_part.tobytes(), "application/octet-stream")
+            },
+        )
 
-            if resp.status_code != 204:
-                raise UploadException(resp.text)
+        if resp.status_code != 204:
+            raise UploadException(resp.text)

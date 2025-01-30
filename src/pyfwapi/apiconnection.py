@@ -84,7 +84,7 @@ class APIConnection:
         /,
         *,
         headers: t.Mapping[str, str] = {},
-        json: t.Any = {},
+        json: t.Any | None = None,
         **kwargs,
     ) -> Response:
         """
@@ -121,7 +121,7 @@ class APIConnection:
         /,
         *,
         headers: t.Mapping[str, str] = {},
-        json: t.Any = {},
+        json: t.Any | None = None,
         **kwargs,
     ) -> Response:
         """
