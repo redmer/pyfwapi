@@ -42,7 +42,7 @@ class APIConnection:
 
     async def ensure_token(self):
         """Ensure that the OAuth2 client has fetched a token."""
-        # AsyncOAuth2Clien locks to ensure no race conditions when fetching the token.
+        # AsyncOAuth2Client locks to ensure no race conditions when fetching the token.
         if not self.client.token:
             await self.client.fetch_token()  # type: ignore
 

@@ -171,7 +171,7 @@ class SE:
         return self.AND(other)
 
     def __str__(self) -> str:
-        return str(self.data)
+        return str(self.data or "")  # prevent "None"
 
     def __repr__(self) -> str:
         return f"""SE(ast={repr(self.data)})"""
