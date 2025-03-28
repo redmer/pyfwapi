@@ -104,7 +104,10 @@ class Tenant:
                 pyfwapiLog.error(f"Collection '{a}' cannot be searched")
                 raise CollectionNotSearchable("Collection '{a}' has no searchURL")
 
-            q = ";o=+?q=" + quote(str(query).strip())  # order by oldest modified
+            qval = quote(str(query).strip())
+            if qval != "":
+                qval = f"?q={qval}"
+            q = f";o=+{qval}"  # order by oldest modified
             query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
             async for asset in self.api.paginated(query_url, type=Asset):
                 yield asset
@@ -161,7 +164,7 @@ class UnstableTenant(Tenant):
     """This subclass of Tenant also provides access to undocumented APIs."""
 
     async def namespaces(self) -> t.AsyncGenerator[FieldNamespace, None]:
-        """Registered metadata namespaces."""
+        """Registered metadata namespaces. (Undocumented.)"""
         d = await self.api.GET("/fotoweb/api/config/metadata/namespaces")
         for namespace in d.json():
             yield namespace
@@ -169,7 +172,7 @@ class UnstableTenant(Tenant):
     async def known_fields(
         self,
     ) -> t.AsyncGenerator[KnownMetadataField, None]:
-        """Registered metadata fields."""
+        """Registered metadata fields. (Undocumented.)"""
         d = await self.api.GET("/fotoweb/api/config/metadata/fields/known")
         for field in d.json():
             yield field
