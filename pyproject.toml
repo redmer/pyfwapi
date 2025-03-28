@@ -2,13 +2,14 @@
 name = "pyfwapi"
 version = "0.2.3"
 description = "Work with the Fotoware API in Python"
-authors = ["Redmer Kronemeijer <12477216+redmer@users.noreply.github.com>"]
 license = "mpl-2.0"
 readme = "README.md"
+authors = [
+    { name = "Redmer Kronemeijer", email = "12477216+redmer@users.noreply.github.com" }
+]
 
 requires-python = ">=3.12"
 dependencies = [
-    "aiohttp>=3.11.11",
     "aiolimiter>=1.2.1",
     "aiostream>=0.6.4",
     "authlib>=1.4.1",
