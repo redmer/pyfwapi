@@ -3,6 +3,7 @@ import typing as t
 import urllib.parse
 
 import aiolimiter
+import httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from httpx import Response
 
@@ -58,25 +59,44 @@ class APIConnection:
             pass
 
     async def GET(
-        self, path: str, /, *, headers: t.Mapping[str, str] = {}, **kwargs
+        self,
+        path: str,
+        /,
+        *,
+        is_retry=False,
+        headers: t.Mapping[str, str] = {},
+        **kwargs,
     ) -> Response:
         """
         Perform GET request on the API and return JSON.
 
         Raises:
             httpx.HTTPStatusError: API response if the status code is not 200.
+            httpx.ConnectTimeout: Server side rate limit exceeded
+            httpx.RemoteProtocolError: Server side rate limit exceeded
         """
-        await self.ensure_token()
-        pyfwapiLog.debug(f"GET {urllib.parse.unquote(path)}")
-        async with self.rate_limit:
-            r = await self.client.get(
-                self.HOST + path,
-                headers={"Accept": "application/json", **headers},
-                follow_redirects=True,
-                **kwargs,
-            )
-            r.raise_for_status()
-            return r
+        try:
+            await self.ensure_token()
+            pyfwapiLog.debug(f"GET {urllib.parse.unquote(path)}")
+            async with self.rate_limit:
+                r = await self.client.get(
+                    self.HOST + path,
+                    headers={"Accept": "application/json", **headers},
+                    follow_redirects=True,
+                    **kwargs,
+                )
+                r.raise_for_status()
+                return r
+
+        except (httpx.ConnectTimeout, httpx.RemoteProtocolError):
+            # A possible effect of the server-side rate limiter
+            # Solution: retry once, after waiting about a minute.
+            if is_retry is False:
+                self.client.token = None
+                await asyncio.sleep(60)
+                return await self.GET(path, is_retry=True, headers=headers, **kwargs)
+
+            raise
 
     async def PATCH(
         self,
