@@ -1,6 +1,6 @@
 [project]
 name = "pyfwapi"
-version = "0.2.6"
+version = "0.2.7"
 description = "Work with the Fotoware API in Python"
 license = "mpl-2.0"
 readme = "README.md"
