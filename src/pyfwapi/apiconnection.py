@@ -63,7 +63,7 @@ class APIConnection:
         path: str,
         /,
         *,
-        is_retry=False,
+        retry_attempt=0,
         headers: t.Mapping[str, str] = {},
         **kwargs,
     ) -> Response:
@@ -88,13 +88,16 @@ class APIConnection:
                 r.raise_for_status()
                 return r
 
-        except (httpx.ConnectTimeout, httpx.RemoteProtocolError):
+        except (httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadTimeout):
             # A possible effect of the server-side rate limiter
             # Solution: retry once, after waiting about a minute.
-            if is_retry is False:
+            if retry_attempt <= 3:
+                print(f"Server connection severed. Retrying {retry_attempt}")
                 self.client.token = None
                 await asyncio.sleep(60)
-                return await self.GET(path, is_retry=True, headers=headers, **kwargs)
+                return await self.GET(
+                    path, retry_attempt=retry_attempt + 1, headers=headers, **kwargs
+                )
 
             raise
 
