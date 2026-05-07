@@ -145,7 +145,7 @@ class BaseChangeManager:
                 json={"metadata": dataclasses.asdict(item)["new_metadata"]},
             )
         except httpx.HTTPStatusError as err:
-            pyfwapiLog.warning(f"{item} failed, because:", err)
+            pyfwapiLog.warning(f"{item} failed, because: {err}")
             return False
         else:
             return True
@@ -212,7 +212,6 @@ class BaseChangeManager:
 
         resp = await conn.POST(
             f"/fotoweb/api/uploads/{upload_info.id}/chunks/{i}",
-            headers=mp.headers,
             files={
                 "chunk": ("chunk", bytes_part.tobytes(), "application/octet-stream")
             },
