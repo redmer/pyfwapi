@@ -163,3 +163,4 @@ cython_debug/
 
 *.ipynb
 original/spec.yaml
+.vscode/settings.json
