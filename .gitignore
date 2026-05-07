@@ -164,3 +164,5 @@ cython_debug/
 *.ipynb
 original/spec.yaml
 .vscode/settings.json
+pytest-coverage.txt
+pytest.xml
