@@ -61,4 +61,4 @@ jobs:
                 ]
               | "| " + (.[0]) + " | " + (.[1] | tostring) + "% | " + (.[2] | tostring) + "% |"
             ' coverage.xml
-          } >> $GITHUB_OUTPUT
+          } >> $GITHUB_STEP_SUMMARY
