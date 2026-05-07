@@ -148,6 +148,10 @@ class SE:
         """Negate the built SE."""
         return self.NOT()
 
+    def __invert__(self):
+        """Negate the built SE."""
+        return self.NOT()
+
     def OR(self, other: t.Self, /):
         if other.data is None or self.data is None:
             raise SearchSyntaxError("Uninitialized SE in an OR expression")
