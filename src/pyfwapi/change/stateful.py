@@ -3,7 +3,7 @@ import typing as t
 from dataclasses import dataclass, field
 from uuid import uuid4
 
-from httpx import HTTPStatusError
+import httpxyz as httpx
 
 from pyfwapi.apiconnection import APIConnection
 from pyfwapi.errors import UploadException
@@ -144,7 +144,7 @@ class BaseChangeManager:
                 headers={"Content-Type": "application/vnd.fotoware.assetupdate+json"},
                 json={"metadata": dataclasses.asdict(item)["new_metadata"]},
             )
-        except HTTPStatusError as err:
+        except httpx.HTTPStatusError as err:
             pyfwapiLog.warning(f"{item} failed, because:", err)
             return False
         else:

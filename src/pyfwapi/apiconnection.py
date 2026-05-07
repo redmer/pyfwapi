@@ -3,9 +3,8 @@ import typing as t
 import urllib.parse
 
 import aiolimiter
-import httpx
+import httpxyz as httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
-from httpx import Response
 
 from pyfwapi.errors import APIError
 from pyfwapi.log import pyfwapiLog
@@ -66,7 +65,7 @@ class APIConnection:
         retry_attempt=0,
         headers: t.Mapping[str, str] = {},
         **kwargs,
-    ) -> Response:
+    ) -> httpx.Response:
         """
         Perform GET request on the API and return JSON.
 
@@ -109,7 +108,7 @@ class APIConnection:
         headers: t.Mapping[str, str] = {},
         json: t.Any | None = None,
         **kwargs,
-    ) -> Response:
+    ) -> httpx.Response:
         """
         Perform PATCH request on the API and return JSON.
 
@@ -146,7 +145,7 @@ class APIConnection:
         headers: t.Mapping[str, str] = {},
         json: t.Any | None = None,
         **kwargs,
-    ) -> Response:
+    ) -> httpx.Response:
         """
         Perform POST request on the API and return JSON.
 
@@ -203,7 +202,7 @@ class APIConnection:
 
     async def retrying(
         self, path: str, *, retries: int | None = None, delay: float | None = None
-    ) -> Response:
+    ) -> httpx.Response:
         """
         GET and upon non-200, retry to get the binary stream of a file.
 
