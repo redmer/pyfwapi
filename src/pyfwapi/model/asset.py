@@ -2,7 +2,7 @@ import typing as t
 from datetime import datetime
 
 from pyfwapi.model.basemodel import APIResponse
-from pyfwapi.model.preview_rendition import AssetPreview, AssetRendition
+from pyfwapi.model.preview_rendition import AssetPreview, AssetRendition, QuickRendition
 
 type BuiltinFieldName = t.Literal[
     "title", "description", "tags", "notes", "status", "rating"
@@ -65,7 +65,7 @@ class Asset(APIResponse):
     previews: list[AssetPreview] | None
     previewToken: str
     renditions: list[AssetRendition] | None
-    quickRenditions: list[AssetRendition] | None
+    quickRenditions: list[QuickRendition] | None
 
     archiveId: int
 
