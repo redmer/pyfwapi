@@ -183,7 +183,7 @@ class APIConnection:
         """
         page_url: str | None = path
 
-        while page_url is not None or page_url != "":
+        while page_url:
             full_results = await self.GET(page_url, headers=headers)
             full_results = full_results.json()
 
@@ -196,9 +196,11 @@ class APIConnection:
             for d in data:
                 yield type.model_validate(d)
 
-            # For next iteration, set page_url to None or next page
-            page_url = None
-            page_url: str | None = page.get("paging", dict()).get("next", None)
+            paging = page.get("paging", {})
+            if paging:
+                page_url = paging.get("next")
+            else:
+                page_url = None
 
     async def retrying(
         self, path: str, *, retries: int | None = None, delay: float | None = None
