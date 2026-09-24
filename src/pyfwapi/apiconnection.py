@@ -51,7 +51,13 @@ class APIConnection:
     # entity types, like Asset or Rendition.
 
     def __init__(
-        self, endpoint_url: str, *, client_id: str, client_secret: str
+        self,
+        endpoint_url: str,
+        *,
+        client_id: str,
+        client_secret: str,
+        max_rate: float = 1,
+        time_period: float = 0.8,
     ) -> None:
         """
         Connect to an instance of the FotoWare API.
@@ -60,11 +66,15 @@ class APIConnection:
             endpoint_url: URL of the endpoint, e.g. `https://myorg.example.org`
             client_id: the registered non-interactive application's `client_id`
             client_secret: the application's secret
+            max_rate: number of requests allowed per `time_period` (client-side
+                rate limit; defaults to the conservative 1 request / 0.8 s).
+            time_period: period in seconds over which `max_rate` requests are
+                allowed.
         """
 
         self.HOST = endpoint_url.removesuffix("/")
         self.TOKEN_ENDPOINT = f"{self.HOST}/fotoweb/oauth2/token"
-        self.rate_limit = aiolimiter.AsyncLimiter(1, 0.8)
+        self.rate_limit = aiolimiter.AsyncLimiter(max_rate, time_period)
 
         self.client = AsyncOAuth2Client(
             client_id=client_id,
