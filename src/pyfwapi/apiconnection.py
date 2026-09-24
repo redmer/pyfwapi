@@ -1,4 +1,5 @@
 import asyncio
+import random
 import typing as t
 import urllib.parse
 
@@ -9,6 +10,39 @@ from authlib.integrations.httpx_client import AsyncOAuth2Client
 from pyfwapi.errors import APIError
 from pyfwapi.log import pyfwapiLog
 from pyfwapi.model.basemodel import APIResponse
+
+# Transient HTTP statuses worth retrying on idempotent GETs.
+# Other 4xx are client errors and must raise immediately.
+RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
+
+# Transport-level errors that may be retried.
+RETRYABLE_TRANSPORT_ERRORS = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.ReadTimeout,
+    httpx.RemoteProtocolError,
+)
+
+MAX_GET_ATTEMPTS = 5
+BACKOFF_BASE_SECONDS = 1.0
+BACKOFF_MAX_SECONDS = 16.0
+
+
+def _backoff_delay(attempt: int) -> float:
+    """Exponential backoff with jitter: ~1s, 2s, 4s, 8s, 16s."""
+    delay = min(BACKOFF_BASE_SECONDS * 2**attempt, BACKOFF_MAX_SECONDS)
+    return delay + random.uniform(0, delay * 0.5)
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    """Parse a numeric `Retry-After` response header, if present."""
+    value = response.headers.get("Retry-After")
+    if value is None:
+        return None
+    try:
+        return min(float(value), BACKOFF_MAX_SECONDS)
+    except ValueError:
+        return None
 
 
 class APIConnection:
@@ -62,43 +96,72 @@ class APIConnection:
         path: str,
         /,
         *,
-        retry_attempt=0,
         headers: t.Mapping[str, str] = {},
         **kwargs,
     ) -> httpx.Response:
         """
         Perform GET request on the API and return JSON.
 
+        GETs are idempotent, so transient failures (HTTP 408/429/5xx and
+        transport-level connection errors) are retried with exponential
+        backoff and jitter. Other 4xx responses raise immediately.
+
         Raises:
             httpx.HTTPStatusError: API response if the status code is not 200.
             httpx.ConnectTimeout: Server side rate limit exceeded
             httpx.RemoteProtocolError: Server side rate limit exceeded
         """
-        try:
-            await self.ensure_token()
-            pyfwapiLog.debug(f"GET {urllib.parse.unquote(path)}")
-            async with self.rate_limit:
-                r = await self.client.get(
-                    self.HOST + path,
-                    headers={"Accept": "application/json", **headers},
-                    follow_redirects=True,
-                    **kwargs,
-                )
-                r.raise_for_status()
-                return r
+        last_error: BaseException | None = None
 
-        except (httpx.ConnectTimeout, httpx.RemoteProtocolError, httpx.ReadTimeout):
-            # A possible effect of the server-side rate limiter
-            # Solution: retry once, after waiting about a minute.
-            if retry_attempt <= 3:
-                print(f"Server connection severed. Retrying {retry_attempt}")
+        for attempt in range(MAX_GET_ATTEMPTS):
+            try:
+                await self.ensure_token()
+                pyfwapiLog.debug(f"GET {urllib.parse.unquote(path)}")
+                async with self.rate_limit:
+                    r = await self.client.get(
+                        self.HOST + path,
+                        headers={"Accept": "application/json", **headers},
+                        follow_redirects=True,
+                        **kwargs,
+                    )
+                    r.raise_for_status()
+                    return r
+
+            except httpx.HTTPStatusError as e:
+                # Non-retryable client errors (e.g. 401/403/404) raise at once.
+                if e.response.status_code not in RETRYABLE_STATUS_CODES:
+                    raise
+                last_error = e
+                reason = f"HTTP {e.response.status_code}"
+                delay = _retry_after(e.response) or _backoff_delay(attempt)
+
+            except RETRYABLE_TRANSPORT_ERRORS as e:
+                # A possible effect of the server-side rate limiter.
+                last_error = e
+                reason = f"{type(e).__name__}: {e}"
+                delay = _backoff_delay(attempt)
+                # Refresh the token on the next attempt; the connection
+                # reset may have invalidated the session state.
                 self.client.token = None
-                await asyncio.sleep(60)
-                return await self.GET(
-                    path, retry_attempt=retry_attempt + 1, headers=headers, **kwargs
-                )
 
-            raise
+            if attempt < MAX_GET_ATTEMPTS - 1:
+                pyfwapiLog.warning(
+                    "Transient error on GET %s: %s. Retrying attempt %d/%d in %.1fs.",
+                    urllib.parse.unquote(path),
+                    reason,
+                    attempt + 2,
+                    MAX_GET_ATTEMPTS,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+        pyfwapiLog.error(
+            "GET %s failed after %d attempts.",
+            urllib.parse.unquote(path),
+            MAX_GET_ATTEMPTS,
+        )
+        assert last_error is not None
+        raise last_error
 
     async def PATCH(
         self,
