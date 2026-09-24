@@ -79,8 +79,96 @@ class TestAPIConnection:
         resp = await api_conn.GET("/flakey/path")
 
         assert api_conn.client.get.call_count == 2
-        mock_sleep.assert_awaited_once_with(60)
+        mock_sleep.assert_awaited_once()
         assert resp.json() == {"retry": "success"}
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_get_retry_on_transient_500(self, mock_sleep, api_conn):
+        """A single transient 500 must not abort the request."""
+        api_conn.client.token = {"access_token": "abc"}
+
+        request = httpx.Request("GET", "https://test.fotoware.cloud/flakey/path?p=115")
+        api_conn.client.get.side_effect = [
+            httpx.Response(500, request=request),
+            httpx.Response(200, json={"ok": True}, request=request),
+        ]
+
+        resp = await api_conn.GET("/flakey/path?p=115")
+
+        assert api_conn.client.get.call_count == 2
+        mock_sleep.assert_awaited_once()
+        assert resp.json() == {"ok": True}
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_get_retry_burst_under_max_attempts(self, mock_sleep, api_conn):
+        """A burst of fewer than 5 transient 5xx errors still succeeds."""
+        api_conn.client.token = {"access_token": "abc"}
+
+        request = httpx.Request("GET", "https://test.fotoware.cloud/flakey/path")
+        api_conn.client.get.side_effect = [
+            httpx.Response(500, request=request),
+            httpx.Response(502, request=request),
+            httpx.Response(503, request=request),
+            httpx.Response(200, json={"ok": True}, request=request),
+        ]
+
+        resp = await api_conn.GET("/flakey/path")
+
+        assert api_conn.client.get.call_count == 4
+        assert mock_sleep.await_count == 3
+        assert resp.json() == {"ok": True}
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_get_persistent_5xx_raises_after_max_attempts(
+        self, mock_sleep, api_conn
+    ):
+        """Persistent 5xx raises HTTPStatusError after all attempts."""
+        api_conn.client.token = {"access_token": "abc"}
+
+        request = httpx.Request("GET", "https://test.fotoware.cloud/broken/path")
+        api_conn.client.get.return_value = httpx.Response(503, request=request)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await api_conn.GET("/broken/path")
+
+        assert api_conn.client.get.call_count == 5
+        assert mock_sleep.await_count == 4
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_get_429_honors_retry_after(self, mock_sleep, api_conn):
+        """A 429 with a Retry-After header waits the requested time."""
+        api_conn.client.token = {"access_token": "abc"}
+
+        request = httpx.Request("GET", "https://test.fotoware.cloud/limited/path")
+        api_conn.client.get.side_effect = [
+            httpx.Response(429, headers={"Retry-After": "7"}, request=request),
+            httpx.Response(200, json={"ok": True}, request=request),
+        ]
+
+        resp = await api_conn.GET("/limited/path")
+
+        assert api_conn.client.get.call_count == 2
+        mock_sleep.assert_awaited_once_with(7.0)
+        assert resp.json() == {"ok": True}
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_get_4xx_raises_immediately(self, mock_sleep, api_conn):
+        """Client errors (other than 408/429) are not retried."""
+        api_conn.client.token = {"access_token": "abc"}
+
+        request = httpx.Request("GET", "https://test.fotoware.cloud/missing")
+        api_conn.client.get.return_value = httpx.Response(404, request=request)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await api_conn.GET("/missing")
+
+        api_conn.client.get.assert_awaited_once()
+        mock_sleep.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_patch_success(self, api_conn):
