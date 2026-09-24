@@ -1,3 +1,4 @@
+import asyncio
 import dataclasses
 import typing as t
 from dataclasses import dataclass, field
@@ -69,21 +70,45 @@ class BaseChangeManager:
     requests, and can keep track of background tasks.
 
     Consider using ChangeManager for a higher-level API.
+
+    Args:
+        max_concurrent_tasks: how many independent changes (uploads, moves,
+            metadata patches) may be committed in parallel.
+        max_concurrent_chunks: how many chunks of a single upload may be in
+            flight at the same time. The FotoWare Upload API explicitly allows
+            chunks to be uploaded in any order and in parallel.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, *, max_concurrent_tasks: int = 4, max_concurrent_chunks: int = 4
+    ) -> None:
         self.tasks: dict[bytes, ChangeTask] = dict()
         self.task_statuslocation: dict[bytes, str] = dict()
+        self._task_semaphore = asyncio.Semaphore(max_concurrent_tasks)
+        self._chunk_semaphore = asyncio.Semaphore(max_concurrent_chunks)
 
     def add_task(self, task: ChangeTask):
         self.tasks[task.id] = task
 
     async def commit(self, *, conn: APIConnection, await_done: bool = True):
-        """Commit changes ready to commit."""
-        for task in self.tasks.values():
-            if task.status != "uncommitted":
-                continue
-            await self.commit_uncommitted(task, conn=conn)
+        """Commit changes ready to commit.
+
+        Independent tasks are committed in parallel, bounded by
+        ``max_concurrent_tasks``. All requests still pass through the
+        connection-level rate limiter.
+        """
+
+        async def _commit(task: ChangeTask):
+            async with self._task_semaphore:
+                await self.commit_uncommitted(task, conn=conn)
+
+        await asyncio.gather(
+            *(
+                _commit(task)
+                for task in self.tasks.values()
+                if task.status == "uncommitted"
+            )
+        )
 
     async def commit_uncommitted(self, ch: ChangeTask, *, conn: APIConnection):
         """Commit a single uncommitted ChangeTask."""
@@ -105,13 +130,16 @@ class BaseChangeManager:
             self.task_statuslocation[ch.id] = f"/fotoweb/api/uploads/{task.id}/status"
 
     async def check_submitted(self, *, conn: APIConnection):
-        """Check the processing status of backgrounded tasks, like moves and uploads."""
-        for task in self.tasks.values():
-            if task.status != "submitted":
-                continue
+        """Check the processing status of backgrounded tasks, like moves and uploads.
+
+        All submitted tasks are polled in parallel, bounded by
+        ``max_concurrent_tasks``.
+        """
+
+        async def _check(task: ChangeTask):
             location = self.task_statuslocation.get(task.id)
             if location is None:
-                continue
+                return
 
             if isinstance(task.change, MoveRequest):
                 r = await conn.GET(location)
@@ -132,6 +160,18 @@ class BaseChangeManager:
                     case "failed":
                         task.status = "failed"
                         pyfwapiLog.warn(f"Upload failed (fn:{task.change.filename})")
+
+        async def _check_bounded(task: ChangeTask):
+            async with self._task_semaphore:
+                await _check(task)
+
+        await asyncio.gather(
+            *(
+                _check_bounded(task)
+                for task in self.tasks.values()
+                if task.status == "submitted"
+            )
+        )
 
     async def patch_metadata(
         self, item: MetadataRequest, *, conn: APIConnection
@@ -190,8 +230,15 @@ class BaseChangeManager:
 
         upload_info = BatchUploadInfo.model_validate_json(r.content)
 
-        for i in range(upload_info.numChunks):
-            await self._upload_asset_chunk(i, upload_info, item, conn=conn)
+        # Chunks may be uploaded in any order and in parallel (per the FotoWare
+        # Upload API docs). Concurrency is bounded so we stay well within
+        # server-side rate limits; every request also passes through the
+        # connection-level rate limiter.
+        async def _upload_chunk(i: int):
+            async with self._chunk_semaphore:
+                await self._upload_asset_chunk(i, upload_info, item, conn=conn)
+
+        await asyncio.gather(*(_upload_chunk(i) for i in range(upload_info.numChunks)))
 
         return upload_info
 
@@ -205,7 +252,7 @@ class BaseChangeManager:
     ):
         """Upload a chunk of a new asset."""
         chunk_offset = i * upload_info.chunkSize
-        chunk_size = min([upload_info.chunkSize, item.filesize])
+        chunk_size = min(upload_info.chunkSize, item.filesize - chunk_offset)
         chunk_end = chunk_offset + chunk_size
 
         bytes_part = item.contents[chunk_offset:chunk_end]
