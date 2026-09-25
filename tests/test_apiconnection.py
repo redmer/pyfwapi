@@ -3,7 +3,8 @@ from unittest.mock import AsyncMock, patch
 import httpxyz as httpx
 import pytest
 
-from pyfwapi.apiconnection import APIConnection
+from pyfwapi.apiconnection import SEARCH_RESULT_LIMIT, APIConnection
+from pyfwapi.model.asset import Asset
 
 
 class TestAPIConnection:
@@ -214,3 +215,132 @@ class TestAPIConnection:
             json={"foo": "bar"},
         )
         assert resp.status_code == 201
+
+
+class TestPaginatedSeek:
+    """Seek pagination transparently restarts a search past the 10k cap."""
+
+    LIMIT = SEARCH_RESULT_LIMIT
+
+    @pytest.fixture
+    def mock_client_cls(self):
+        with patch("pyfwapi.apiconnection.AsyncOAuth2Client") as MockClient:
+            instance = MockClient.return_value
+            instance.fetch_token = AsyncMock()
+            instance.aclose = AsyncMock()
+            instance.token = {"access_token": "abc"}
+            yield MockClient, instance
+
+    @pytest.fixture
+    def api_conn(self, mock_client_cls):
+        conn = APIConnection(
+            "https://test.fotoware.cloud/",
+            client_id="test_id",
+            client_secret="test_secret",
+        )
+        conn.GET = AsyncMock()
+        return conn
+
+    @staticmethod
+    def asset_json(i: int, minute: int) -> dict:
+        return {
+            "href": f"/fotoweb/archives/1/asset{i}",
+            "modified": f"2024-01-01T12:{minute:02d}:00Z",
+            "physicalFileId": str(i),
+            "linkstance": "x",
+            "filename": f"asset{i}.jpg",
+            "filesize": 1,
+            "doctype": "image",
+            "created": None,
+            "archiveId": 1,
+            "archiveHREF": "/fotoweb/archives/1",
+            "builtinFields": [],
+            "metadata": {},
+            "previews": None,
+            "previewToken": "x",
+            "renditions": None,
+            "quickRenditions": None,
+        }
+
+    def page(self, assets: list[dict]) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"data": assets, "paging": {}},
+            request=httpx.Request("GET", "https://test.fotoware.cloud/search"),
+        )
+
+    @pytest.mark.asyncio
+    async def test_paginated_single_window(self, api_conn):
+        api_conn.GET.return_value = self.page([self.asset_json(i, 0) for i in range(3)])
+
+        assets = [a async for a in api_conn.paginated("/search", type=Asset)]
+
+        assert [a.href for a in assets] == [
+            f"/fotoweb/archives/1/asset{i}" for i in range(3)
+        ]
+        api_conn.GET.assert_awaited_once_with("/search", headers={})
+
+    @pytest.mark.asyncio
+    async def test_paginated_seek_requeries_with_mtf(self, api_conn):
+        first = [self.asset_json(i, 1) for i in range(self.LIMIT)]
+        second = [self.asset_json(i, 2) for i in range(self.LIMIT, self.LIMIT + 5)]
+        api_conn.GET.side_effect = [self.page(first), self.page(second)]
+
+        assets = [
+            a async for a in api_conn.paginated("/search;o=+", type=Asset, seek=True)
+        ]
+
+        assert len(assets) == self.LIMIT + 5
+        assert api_conn.GET.await_count == 2
+        second_url = api_conn.GET.await_args_list[1].args[0]
+        assert second_url == "/search;o=+?q=mtf%3A2024-01-01T12%3A01%3A00Z"
+
+    @pytest.mark.asyncio
+    async def test_paginated_seek_appends_to_existing_query(self, api_conn):
+        first = [self.asset_json(i, 1) for i in range(self.LIMIT)]
+        api_conn.GET.side_effect = [self.page(first), self.page([])]
+
+        assets = [
+            a
+            async for a in api_conn.paginated(
+                "/search;o=+?q=fn%3A%2A.jpg", type=Asset, seek=True
+            )
+        ]
+
+        assert len(assets) == self.LIMIT
+        second_url = api_conn.GET.await_args_list[1].args[0]
+        assert (
+            second_url == "/search;o=+?q=fn%3A%2A.jpg&q=mtf%3A2024-01-01T12%3A01%3A00Z"
+        )
+
+    @pytest.mark.asyncio
+    async def test_paginated_seek_dedupes_boundary_assets(self, api_conn):
+        # all assets share the same minute: window 2 repeats the boundary asset
+        first = [self.asset_json(i, 1) for i in range(self.LIMIT)]
+        second = [first[-1]] + [
+            self.asset_json(i, 1) for i in range(self.LIMIT, self.LIMIT + 5)
+        ]
+        api_conn.GET.side_effect = [self.page(first), self.page(second)]
+
+        assets = [
+            a async for a in api_conn.paginated("/search;o=+", type=Asset, seek=True)
+        ]
+
+        hrefs = [a.href for a in assets]
+        assert len(assets) == self.LIMIT + 5
+        assert len(hrefs) == len(set(hrefs))
+
+    @pytest.mark.asyncio
+    async def test_paginated_seek_all_duplicate_window_breaks_loop(self, api_conn):
+        # >10k assets share the same timestamp: every follow-up window returns
+        # only already-seen assets; the loop must terminate instead of spinning.
+        first = [self.asset_json(i, 1) for i in range(self.LIMIT)]
+        dupes = first[:100]
+        api_conn.GET.side_effect = [self.page(first), self.page(dupes)]
+
+        assets = [
+            a async for a in api_conn.paginated("/search;o=+", type=Asset, seek=True)
+        ]
+
+        assert len(assets) == self.LIMIT
+        assert api_conn.GET.await_count == 2

@@ -2,6 +2,8 @@ import asyncio
 import random
 import typing as t
 import urllib.parse
+from datetime import UTC
+from urllib.parse import quote
 
 import aiolimiter
 import httpxyz as httpx
@@ -26,6 +28,9 @@ RETRYABLE_TRANSPORT_ERRORS = (
 MAX_GET_ATTEMPTS = 5
 BACKOFF_BASE_SECONDS = 1.0
 BACKOFF_MAX_SECONDS = 16.0
+
+# The server caps search results at this many assets.
+SEARCH_RESULT_LIMIT = 10_000
 
 
 def _backoff_delay(attempt: int) -> float:
@@ -244,7 +249,13 @@ class APIConnection:
             return r
 
     async def paginated[T: APIResponse](
-        self, path: str, /, *, type: type[T], headers: t.Mapping[str, str] = {}
+        self,
+        path: str,
+        /,
+        *,
+        type: type[T],
+        headers: t.Mapping[str, str] = {},
+        seek: bool = False,
     ) -> t.AsyncGenerator[T, None]:
         """
         Iterate over "data" items in any paged resource.
@@ -253,27 +264,62 @@ class APIConnection:
             path: the resource endpoint, starting with /
             type: the response JSON type (APIResponse)
             headers: arbitrary HTTP headers for this request
+            seek: work around the server's 10k search-result cap. When a window
+                is exhausted at the cap, restart the search narrowed with `mtf`
+                (modified from) set to the last seen modification time. Requires
+                ascending modification order (`;o=+`) and items exposing
+                `href`/`modified` (i.e. Assets). Boundary assets may repeat
+                (`mtf` is inclusive, minute precision), so assets are deduped per href.
         """
-        page_url: str | None = path
+        last_modified: str | None = None
+        seen_hrefs: set[str] = set()
 
-        while page_url:
-            full_results = await self.GET(page_url, headers=headers)
-            full_results = full_results.json()
+        while True:
+            url = path
+            if last_modified is not None:
+                joiner = "&" if "?" in path else "?"
+                url = f"{path}{joiner}q=mtf%3A{quote(last_modified)}"
 
-            # Some first pages are different
-            page: t.Mapping[str, t.Any] = full_results.get("assets", full_results)
-            data = page.get("data", [])
+            raw = 0
+            yielded = 0
+            page_url: str | None = url
+            while page_url:
+                full_results = await self.GET(page_url, headers=headers)
+                full_results = full_results.json()
 
-            if len(data) == 0:
+                # Some first pages are different
+                page: t.Mapping[str, t.Any] = full_results.get("assets", full_results)
+                data = page.get("data", [])
+
+                if len(data) == 0:
+                    break
+                for d in data:
+                    raw += 1
+                    item = type.model_validate(d)
+                    if seek:
+                        modified = getattr(item, "modified", None)
+                        if modified is not None:
+                            last_modified = modified.astimezone(UTC).strftime(
+                                "%Y-%m-%dT%H:%M:%SZ"
+                            )
+                        href: str = item.href  # type: ignore[attr-defined]
+                        if href in seen_hrefs:
+                            continue
+                        seen_hrefs.add(href)
+                    yield item
+                    yielded += 1
+
+                paging = page.get("paging", {})
+                if paging:
+                    page_url = paging.get("next")
+                else:
+                    page_url = None
+
+            # Stop when a window made no progress (all results were duplicates,
+            # e.g. >10k assets share the boundary timestamp) or when the window
+            # was not capped by the server, meaning the results are exhausted.
+            if not seek or yielded == 0 or raw < SEARCH_RESULT_LIMIT:
                 break
-            for d in data:
-                yield type.model_validate(d)
-
-            paging = page.get("paging", {})
-            if paging:
-                page_url = paging.get("next")
-            else:
-                page_url = None
 
     async def retrying(
         self, path: str, *, retries: int | None = None, delay: float | None = None

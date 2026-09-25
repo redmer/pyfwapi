@@ -105,11 +105,9 @@ class Tenant:
                 raise CollectionNotSearchable("Collection '{a}' has no searchURL")
 
             qval = quote(str(query).strip())
-            if qval != "":
-                qval = f"?q={qval}"
-            q = f";o=+{qval}"  # order by oldest modified
+            q = ";o=+" + (f"?q={qval}" if qval else "")  # oldest modified first
             query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
-            async for asset in self.api.paginated(query_url, type=Asset):
+            async for asset in self.api.paginated(query_url, type=Asset, seek=True):
                 yield asset
 
     # MARK: Previews, renditions
