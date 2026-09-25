@@ -104,13 +104,35 @@ class Tenant:
                 pyfwapiLog.error(f"Collection '{a}' cannot be searched")
                 raise CollectionNotSearchable("Collection '{a}' has no searchURL")
 
-            qval = quote(str(query).strip())
-            if qval != "":
-                qval = f"?q={qval}"
-            q = f";o=+{qval}"  # order by oldest modified
-            query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
-            async for asset in self.api.paginated(query_url, type=Asset):
-                yield asset
+            base_query = str(query).strip()
+            last_modified: str | None = None
+            seen = 0
+            while True:
+                # FotoWare caps search results at 10k assets; once we hit the cap,
+                # restart the search with `mtf` (modified from) after the last seen
+                # modification time, keeping the ascending modified order.
+                if last_modified is None:
+                    effective = base_query
+                else:
+                    boundary = f"mtf:{quote(last_modified)}"
+                    effective = (
+                        f"{base_query} AND ( {boundary} )" if base_query else boundary
+                    )
+                q = ";o=+" + (f"?q={quote(effective)}" if effective else "")
+                query_url = search_base_url.replace(FOTOWARE_QUERY_PLACEHOLDER, q)
+
+                yielded = 0
+                async for asset in self.api.paginated(query_url, type=Asset):
+                    if asset.modified is not None:
+                        last_modified = asset.modified.isoformat(
+                            sep="T", timespec="minutes"
+                        )
+                    yield asset
+                    yielded += 1
+                    seen += 1
+                if yielded == 0 or seen < 10_000:
+                    break
+                seen = 0
 
     # MARK: Previews, renditions
     async def get_preview(
