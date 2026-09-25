@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpxyz as httpx
 import pytest
@@ -215,6 +215,29 @@ class TestAPIConnection:
             json={"foo": "bar"},
         )
         assert resp.status_code == 201
+
+
+class TestRateLimitConfig:
+    def _make_conn(self, client_mock, **kwargs):
+        with patch("pyfwapi.apiconnection.AsyncOAuth2Client", client_mock):
+            return APIConnection(
+                "https://test.fotoware.cloud/",
+                client_id="test_id",
+                client_secret="test_secret",
+                **kwargs,
+            )
+
+    def test_default_rate_limit(self):
+        """Defaults stay at the conservative 1 request / 0.8 s."""
+        conn = self._make_conn(MagicMock())
+        assert conn.rate_limit.max_rate == 1
+        assert conn.rate_limit.time_period == 0.8
+
+    def test_configurable_rate_limit(self):
+        """max_rate and time_period are passed through to the limiter."""
+        conn = self._make_conn(MagicMock(), max_rate=5, time_period=2.0)
+        assert conn.rate_limit.max_rate == 5
+        assert conn.rate_limit.time_period == 2.0
 
 
 class TestPaginatedSeek:
