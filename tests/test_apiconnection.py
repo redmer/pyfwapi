@@ -309,7 +309,9 @@ class TestPaginatedSeek:
 
         assert len(assets) == self.LIMIT
         second_url = api_conn.GET.await_args_list[1].args[0]
-        assert second_url == "/search;o=+?q=fn%3A%2A.jpg&q=mtf%3A2024-01-01T12%3A01%3A00Z"
+        assert (
+            second_url == "/search;o=+?q=fn%3A%2A.jpg&q=mtf%3A2024-01-01T12%3A01%3A00Z"
+        )
 
     @pytest.mark.asyncio
     async def test_paginated_seek_dedupes_boundary_assets(self, api_conn):
