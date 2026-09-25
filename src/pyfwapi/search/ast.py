@@ -5,10 +5,11 @@ Search Expressions.
 Consider using SE (Seach Expression) for an easier, fluent-style API.
 """
 
+import json
 import textwrap
 import typing as t
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 
 @dataclass
@@ -42,8 +43,8 @@ class SEASTNode:
         if arg2 is None:
             return f"""( {self.type} {repr(arg1)} )"""
         return f"""( {self.type}
-{textwrap.indent( repr(arg1), "    "*2)}
-{textwrap.indent( repr(arg2), "    "*2)}
+{textwrap.indent(repr(arg1), "    " * 2)}
+{textwrap.indent(repr(arg2), "    " * 2)}
 )"""
 
 
@@ -51,15 +52,46 @@ type DATE_TYPES = date | datetime
 type VALUE_TYPES = str | int | DATE_TYPES
 type FIELD_TYPES = str | int
 
+# Reserved words and delimiter characters that force a term to be quoted as a phrase.
+# Note: ':' is intentionally not reserved; it appears in date/time terms such as
+# '2023-05-17T12:25:00Z', which must stay unquoted in range/field contexts.
+_RESERVED_WORDS = {"and", "or", "not", "to"}
+_RESERVED_CHARS = set('"&|()~\\')
+
+
+def _quote_phrase(value: str) -> str:
+    """Quote a string as a phrase, using JSON string syntax (escape sequences)."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _needs_quoting(value: str) -> bool:
+    """Check if a term must be quoted to keep its literal meaning."""
+    if not value:
+        return False
+    if value.lower() in _RESERVED_WORDS:
+        return True
+    # A leading hyphen is the NOT operator; mid-word hyphens are literal.
+    if value.startswith("-"):
+        return True
+    return any(c.isspace() or c in _RESERVED_CHARS for c in value)
+
 
 # MARK: Terminals
 def VALUE(value: VALUE_TYPES):
     """Create a field value, escaped where necessary"""
-    if isinstance(value, str) and " " in value:
-        value = f'"{value}"'
+    if isinstance(value, str) and _needs_quoting(value):
+        value = _quote_phrase(value)
     if isinstance(value, datetime):
-        value = value.isoformat(sep="T", timespec="minutes")
-    if isinstance(value, date):
+        # FotoWeb expects ISO 8601 with seconds and prefers UTC ('Z').
+        # Naive datetimes are assumed to be UTC.
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        value = (
+            value.astimezone(timezone.utc)
+            .isoformat(sep="T", timespec="seconds")
+            .replace("+00:00", "Z")
+        )
+    elif isinstance(value, date):
         value = value.isoformat()
     return SEASTNode(type="VALUE", args=(str(value), None))
 

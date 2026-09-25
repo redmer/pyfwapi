@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -24,6 +24,28 @@ def test_ast_value_with_space():
     assert str(node) == '"hello world"'
 
 
+def test_ast_value_escapes_quotes_and_backslashes():
+    node = VALUE('she said "hi"')
+    assert str(node) == '"she said \\"hi\\""'
+
+    node = VALUE("C:\\new")
+    assert str(node) == '"C:\\\\new"'
+
+
+def test_ast_value_quotes_reserved_words_and_delimiters():
+    for word in ("AND", "or", "Not", "TO"):
+        assert str(VALUE(word)) == f'"{word}"'
+    for term in ("a&b", "a|b", "-prefix", "a(b)", "a~~b"):
+        assert str(VALUE(term)) == f'"{term}"'
+
+
+def test_ast_value_simple_terms_unquoted():
+    assert str(VALUE("hello")) == "hello"
+    assert str(VALUE("0123")) == "0123"
+    assert str(VALUE("John-Fredrik")) == "John-Fredrik"
+    assert str(VALUE("")) == ""
+
+
 def test_ast_value_date():
     d = date(2026, 5, 7)
     node = VALUE(d)
@@ -33,7 +55,13 @@ def test_ast_value_date():
 def test_ast_value_datetime():
     dt = datetime(2026, 5, 7, 14, 30)
     node = VALUE(dt)
-    assert str(node) == "2026-05-07T14:30"
+    assert str(node) == "2026-05-07T14:30:00Z"
+
+
+def test_ast_value_datetime_aware_converts_to_utc():
+    dt = datetime(2026, 5, 7, 14, 30, tzinfo=timezone(timedelta(hours=2)))
+    node = VALUE(dt)
+    assert str(node) == "2026-05-07T12:30:00Z"
 
 
 def test_ast_field():
