@@ -29,7 +29,7 @@ def test_se_fts():
 
 def test_se_empty():
     se = SE().empty("title")
-    assert str(se.data) == "title:"
+    assert str(se.data) == 'title:""'
 
 
 def test_se_eq():
@@ -71,7 +71,7 @@ def test_se_dunder_methods():
     assert str(se_or.data) == "( tag:cat ) OR ( tag:dog )"
 
     se_not = -se1
-    assert str(se_not.data) == "NOT ( tag:cat )"
+    assert str(se_not.data) == "-tag:cat"
 
 
 def test_se_dunder_str():
@@ -86,7 +86,7 @@ def test_se_complex_chaining():
     se = se | SE().eq("override", 1)
     se = se & ~SE().empty("required_field")
 
-    expected = "( ( ( status:active ) AND ( date:2020-01-01~~2020-12-31 ) ) OR ( override:1 ) ) AND ( NOT ( required_field: ) )"
+    expected = '( ( ( status:active ) AND ( date:2020-01-01~~2020-12-31 ) ) OR ( override:1 ) ) AND ( -required_field:"" )'
     assert str(se) == expected
 
 
