@@ -6,7 +6,7 @@ from datetime import UTC
 from urllib.parse import quote
 
 import aiolimiter
-import httpxyz as httpx
+import httpx2 as httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 
 from pyfwapi.errors import APIError

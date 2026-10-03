@@ -4,7 +4,7 @@ import typing as t
 from dataclasses import dataclass, field
 from uuid import uuid4
 
-import httpxyz as httpx
+import httpx2 as httpx
 
 from pyfwapi.apiconnection import APIConnection
 from pyfwapi.errors import UploadException
