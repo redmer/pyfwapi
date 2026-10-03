@@ -89,8 +89,9 @@ def test_ast_field_eq():
 def test_ast_field_empty():
     field = FIELD("description")
     node = FIELD_EMPTY(field)
-    assert node.type == "FIELD_EQ"
-    assert str(node) == "description:"
+    assert node.type == "FIELD_EMPTY"
+    # An empty field must be a quoted empty phrase to actually match in FotoWeb.
+    assert str(node) == 'description:""'
 
 
 def test_ast_not():
@@ -100,7 +101,25 @@ def test_ast_not():
 
     node = NOT(eq_node)
     assert node.type == "NOT"
-    assert str(node) == "NOT ( title:hello )"
+    assert str(node) == "-title:hello"
+
+
+def test_ast_not_empty_field():
+    # Regression: 'all assets with any 801 value' must render as -801:"", which
+    # URL-encodes to ?q=-801%3A%22%22. A leading '"' (i.e. double-quoting of the
+    # whole expression) would be wrong.
+    node = NOT(FIELD_EMPTY(FIELD(801)))
+    rendered = str(node)
+    assert rendered == '-801:""'
+    assert not rendered.startswith('"')
+
+
+def test_ast_not_compound_needs_parentheses():
+    from pyfwapi.search.ast import AND
+
+    compound = AND(FIELD_EQ(FIELD("a"), VALUE("1")), FIELD_EQ(FIELD("b"), VALUE("2")))
+    node = NOT(compound)
+    assert str(node) == "-( ( a:1 ) AND ( b:2 ) )"
 
 
 def test_ast_or():

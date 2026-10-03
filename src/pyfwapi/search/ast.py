@@ -3,6 +3,8 @@ This module provides a dataclass that can represent an Abstract Syntax Tree for 
 Search Expressions.
 
 Consider using SE (Seach Expression) for an easier, fluent-style API.
+
+Source: <https://learn.fotoware.com/searching-for-assets/fotoweb-fotoware-search-expressions-reference>
 """
 
 import json
@@ -21,7 +23,9 @@ class SEASTNode:
     its arguments are instances of the AST that it structures.
     """
 
-    type: t.Literal["AND", "OR", "NOT", "FIELD_EQ", "FIELD", "VAL_RANGE", "VALUE"]
+    type: t.Literal[
+        "AND", "OR", "NOT", "FIELD_EQ", "FIELD_EMPTY", "FIELD", "VAL_RANGE", "VALUE"
+    ]
     args: tuple[t.Self | str, t.Self | str | None]
 
     def __str__(self) -> str:
@@ -33,8 +37,17 @@ class SEASTNode:
                 return f"{str(arg1)}~~{str(arg2)}"
             case "FIELD_EQ":
                 return f"{str(arg1)}:{str(arg2)}"
+            case "FIELD_EMPTY":
+                # An empty field value must still match, so it's a quoted empty phrase.
+                return f'{str(arg1)}:""'
             case "NOT":
-                return f"NOT ( {str(arg1)} )"
+                # FotoWeb negation syntax is a leading hyphen, e.g. `-801:""`.
+                # Parentheses are only needed for compound (AND/OR) subexpressions;
+                # a simple `field:value` term binds tighter than the `-` operator.
+                term = str(arg1)
+                if isinstance(arg1, SEASTNode) and arg1.type in {"AND", "OR"}:
+                    term = f"( {term} )"
+                return f"-{term}"
             case "OR" | "AND":
                 return f"( {str(arg1)} ) {self.type} ( {str(arg2)} )"
 
@@ -108,8 +121,8 @@ def VAL_RANGE(start_value: SEASTNode, end_value: SEASTNode):
 
 
 def FIELD_EMPTY(field: SEASTNode):
-    """Create an empty field expression"""
-    return SEASTNode(type="FIELD_EQ", args=(field, VALUE("")))
+    """Create an empty field expression (field has no value)."""
+    return SEASTNode(type="FIELD_EMPTY", args=(field, None))
 
 
 def FIELD_EQ(field: SEASTNode, value: SEASTNode):
