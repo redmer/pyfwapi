@@ -2,7 +2,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from httpxyz import Response
+from httpx2 import Response
 
 from pyfwapi.apiconnection import APIConnection
 from pyfwapi.model.asset import Asset

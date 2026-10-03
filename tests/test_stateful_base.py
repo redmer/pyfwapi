@@ -1,7 +1,7 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import httpxyz as httpx
+import httpx2 as httpx
 import pytest
 
 from pyfwapi.apiconnection import APIConnection

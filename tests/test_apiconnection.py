@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpxyz as httpx
+import httpx2 as httpx
 import pytest
 
 from pyfwapi.apiconnection import SEARCH_RESULT_LIMIT, APIConnection
