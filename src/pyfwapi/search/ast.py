@@ -3,6 +3,8 @@ This module provides a dataclass that can represent an Abstract Syntax Tree for 
 Search Expressions.
 
 Consider using SE (Seach Expression) for an easier, fluent-style API.
+
+Source: <https://learn.fotoware.com/searching-for-assets/fotoweb-fotoware-search-expressions-reference>
 """
 
 import json
